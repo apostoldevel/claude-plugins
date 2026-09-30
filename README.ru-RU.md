@@ -2,16 +2,17 @@
 
 # claude-plugins
 
-[Маркетплейс плагинов Claude Code](https://docs.claude.com/en/docs/claude-code/plugin-marketplaces) для экосистемы
-Апостол: [libapostol](https://github.com/apostoldevel/libapostol) (транспорт на C++20) +
-[db-platform](https://github.com/apostoldevel/db-platform) (фреймворк на PostgreSQL). Один навык — один плагин, у
-каждого своя версия.
+[Маркетплейс плагинов Claude Code](https://docs.claude.com/en/docs/claude-code/plugin-marketplaces) от apostoldevel:
+навыки для экосистемы Апостол — [libapostol](https://github.com/apostoldevel/libapostol) (транспорт на C++20) +
+[db-platform](https://github.com/apostoldevel/db-platform) (фреймворк на PostgreSQL) — и для разработки командой
+именованных агентов. Один навык — один плагин, у каждого своя версия.
 
 ## Плагины
 
 | Плагин | Что получает агент | Версия |
 |---|---|---|
 | [`apostol-project`](plugins/apostol-project/) | Рабочий контекст для проектов на Апостоле: трёхуровневая модель, границы экосистемы, приёмы работы с БД, разграничение доступа, антипаттерны, проверка, маршрут чтения для каждой роли | [plugin.json](plugins/apostol-project/.claude-plugin/plugin.json) |
+| [`agent-team`](plugins/agent-team/) | Разработка видимой командой именованных агентов: роли, доска в git, рабочий день по слову владельца, слово владельца записью; проверенные шаблоны хуков — барьер записи, брифинг, страж контекста, фильтр вывода | [plugin.json](plugins/agent-team/.claude-plugin/plugin.json) |
 
 ## Установка
 
@@ -20,6 +21,7 @@
 ```
 /plugin marketplace add apostoldevel/claude-plugins
 /plugin install apostol-project@apostoldevel
+/plugin install agent-team@apostoldevel
 ```
 
 То же из командной строки: `claude plugin marketplace add apostoldevel/claude-plugins`, затем

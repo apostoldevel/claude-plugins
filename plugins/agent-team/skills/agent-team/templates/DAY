@@ -1,0 +1,7 @@
+day: 2026-09-11
+status: open            # open | closed
+opened: 2026-09-11, on the owner's word — with the caveat, verbatim, if one was given
+previous: 2026-09-09, closed 10.09 on the owner's word
+# open, no folder of that name in your tree → create it, move current, write the day's STATE.md
+# open, folder exists → keep writing there
+# closed → do not open a new day; wait for the word

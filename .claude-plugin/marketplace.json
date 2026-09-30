@@ -5,7 +5,7 @@
     "url": "https://github.com/apostoldevel"
   },
   "metadata": {
-    "description": "Claude Code plugins for the Apostol ecosystem — libapostol (C++20) + db-platform (PostgreSQL/PL/pgSQL). One plugin per skill, each versioned on its own."
+    "description": "Claude Code plugins by apostoldevel: skills for the Apostol ecosystem — libapostol (C++20) + db-platform (PostgreSQL/PL/pgSQL) — and for running development with a named team of agents. One plugin per skill, each versioned on its own."
   },
   "plugins": [
     {
@@ -20,6 +20,18 @@
         "postgresql",
         "plpgsql",
         "cpp20"
+      ]
+    },
+    {
+      "name": "agent-team",
+      "source": "./plugins/agent-team",
+      "description": "Development as a visible named team of Claude Code agents: roles, a git board, a working day on the owner's word, the owner's word by record — with tested hook templates (write barrier, briefing, context guard, output filter).",
+      "category": "productivity",
+      "keywords": [
+        "multi-agent",
+        "team",
+        "coordination",
+        "hooks"
       ]
     }
   ]

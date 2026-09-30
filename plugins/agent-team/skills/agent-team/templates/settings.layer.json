@@ -1,0 +1,76 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "d=\"${CLAUDE_PROJECT_DIR:-$PWD}\"; while [ \"$d\" != \"/\" ] && [ ! -f \"$d/.claude/hooks/guard-write.sh\" ]; do d=$(dirname \"$d\"); done; if [ -f \"$d/.claude/hooks/guard-write.sh\" ]; then bash \"$d/.claude/hooks/guard-write.sh\" || exit 2; else echo \"BLOCKED: write barrier guard-write.sh not found above ${CLAUDE_PROJECT_DIR:-$PWD} -- ask the coordinator.\" >&2; exit 2; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "d=\"${CLAUDE_PROJECT_DIR:-$PWD}\"; while [ \"$d\" != \"/\" ] && [ ! -f \"$d/.claude/hooks/filter-output.sh\" ]; do d=$(dirname \"$d\"); done; [ -f \"$d/.claude/hooks/filter-output.sh\" ] && bash \"$d/.claude/hooks/filter-output.sh\" || echo \"{}\""
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "d=\"${CLAUDE_PROJECT_DIR:-$PWD}\"; while [ \"$d\" != \"/\" ] && [ ! -f \"$d/.claude/hooks/session-start.sh\" ]; do d=$(dirname \"$d\"); done; bash \"$d/.claude/hooks/session-start.sh\" 2>/dev/null || echo \"WARNING: session briefing not found -- ask the coordinator.\""
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "d=\"${CLAUDE_PROJECT_DIR:-$PWD}\"; while [ \"$d\" != \"/\" ] && [ ! -f \"$d/.claude/hooks/session-start.sh\" ]; do d=$(dirname \"$d\"); done; bash \"$d/.claude/hooks/session-start.sh\" --postcompact 2>/dev/null || echo \"WARNING: post-compaction briefing not found -- ask the coordinator.\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "d=\"${CLAUDE_PROJECT_DIR:-$PWD}\"; while [ \"$d\" != \"/\" ] && [ ! -f \"$d/.claude/hooks/context-guard.sh\" ]; do d=$(dirname \"$d\"); done; [ -f \"$d/.claude/hooks/context-guard.sh\" ] && bash \"$d/.claude/hooks/context-guard.sh\" || true"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "d=\"${CLAUDE_PROJECT_DIR:-$PWD}\"; while [ \"$d\" != \"/\" ] && [ ! -f \"$d/.claude/hooks/context-guard.sh\" ]; do d=$(dirname \"$d\"); done; [ -f \"$d/.claude/hooks/context-guard.sh\" ] && bash \"$d/.claude/hooks/context-guard.sh\" || true"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "d=\"${CLAUDE_PROJECT_DIR:-$PWD}\"; while [ \"$d\" != \"/\" ] && [ ! -f \"$d/.claude/hooks/context-guard.sh\" ]; do d=$(dirname \"$d\"); done; [ -f \"$d/.claude/hooks/context-guard.sh\" ] && bash \"$d/.claude/hooks/context-guard.sh\" || true"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "agent-team",
+  "version": "1.0.0",
+  "description": "Development as a visible named team of Claude Code agents: a coordinator and one agent per layer, a git board, a working day opened and closed on the owner's word, the owner's word carried by record — with hook templates: per-role write barrier and its test, session briefing, context guard, output filter.",
+  "author": {
+    "name": "apostoldevel",
+    "url": "https://github.com/apostoldevel"
+  },
+  "homepage": "https://github.com/apostoldevel/claude-plugins/tree/master/plugins/agent-team",
+  "repository": "https://github.com/apostoldevel/claude-plugins",
+  "license": "MIT",
+  "keywords": ["multi-agent", "team", "coordination", "hooks", "claude-code", "agent-skills"]
+}
