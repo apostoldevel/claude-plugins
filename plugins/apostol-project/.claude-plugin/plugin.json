@@ -1,0 +1,13 @@
+{
+  "name": "apostol-project",
+  "version": "1.0.0",
+  "description": "Working context for projects built on Apostol — libapostol (C++20) + db-platform (PostgreSQL/PL/pgSQL): three-layer architecture, ecosystem boundaries, DB patterns, access control, anti-patterns, verification, a reading route per role.",
+  "author": {
+    "name": "apostoldevel",
+    "url": "https://github.com/apostoldevel"
+  },
+  "homepage": "https://github.com/apostoldevel/claude-plugins/tree/master/plugins/apostol-project",
+  "repository": "https://github.com/apostoldevel/claude-plugins",
+  "license": "MIT",
+  "keywords": ["apostol", "libapostol", "db-platform", "postgresql", "plpgsql", "cpp20", "agent-skills"]
+}

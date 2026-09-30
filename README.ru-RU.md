@@ -1,115 +1,92 @@
-[![en](https://img.shields.io/badge/lang-en-red.svg)](https://github.com/apostoldevel/skill-apostol-project/blob/master/README.md)
+[![en](https://img.shields.io/badge/lang-en-red.svg)](README.md)
 
-# skill-apostol-project
+# claude-plugins
 
-[Навык агента](https://docs.claude.com/en/docs/claude-code/skills) (Agent Skill) для Claude Code. Даёт ИИ-агенту
-рабочий контекст для проектов на экосистеме Апостол:
-[libapostol](https://github.com/apostoldevel/libapostol) (транспорт на C++20) +
-[db-platform](https://github.com/apostoldevel/db-platform) (фреймворк на PostgreSQL) + конфигурация проекта.
+[Маркетплейс плагинов Claude Code](https://docs.claude.com/en/docs/claude-code/plugin-marketplaces) для экосистемы
+Апостол: [libapostol](https://github.com/apostoldevel/libapostol) (транспорт на C++20) +
+[db-platform](https://github.com/apostoldevel/db-platform) (фреймворк на PostgreSQL). Один навык — один плагин, у
+каждого своя версия.
 
-Навык вызывается как `/apostol-project`. Для разработки самих фреймворков (libapostol, db-platform, общие модули)
-есть отдельный навык — `/apostol`. В одной сессии оба не грузятся.
+## Плагины
 
-## Что получает агент
-
-- **Трёхуровневую модель и её границы:**
-  - что общее и что принадлежит проекту;
-  - где место исправлению;
-  - что сначала уходит в upstream.
-- **Маршрут чтения для каждой из девяти ролей:** SQL, C++-модули, C++-транспорт без db-platform, фронт, шлюз на Go,
-  QA, devops, аудит, координатор. Агент читает ядро (~30 КБ) и открывает только справочники, которые нужны его
-  задаче.
-- **Приёмы платформы:**
-  - сущности и workflow;
-  - доступ: ACU / AMU / AOU, области, барьер `Access<Entity>`;
-  - процессы: PGFetch, LISTEN/NOTIFY, репликация;
-  - отчёты;
-  - подводные камни установки.
-- **Антипаттерны** — «зал позора», собранный на ревью разных проектов.
-- **Приёмы проверки**, одинаковые для всех слоёв: как убедиться, что проверка действительно что-то проверяет.
-- **Измеренные факты** там, где код расходится с вики. У каждого числа и версии указано, на какой версии платформы
-  сделан замер.
+| Плагин | Что получает агент | Версия |
+|---|---|---|
+| [`apostol-project`](plugins/apostol-project/) | Рабочий контекст для проектов на Апостоле: трёхуровневая модель, границы экосистемы, приёмы работы с БД, разграничение доступа, антипаттерны, проверка, маршрут чтения для каждой роли | [plugin.json](plugins/apostol-project/.claude-plugin/plugin.json) |
 
 ## Установка
 
-Корень репозитория — это и есть каталог навыка. Клонируйте его под именем навыка:
+### Claude Code, для себя
 
-```bash
-# личный — доступен во всех проектах
-git clone https://github.com/apostoldevel/skill-apostol-project.git ~/.claude/skills/apostol-project
-
-# или только для одного проекта
-git clone https://github.com/apostoldevel/skill-apostol-project.git <project>/.claude/skills/apostol-project
+```
+/plugin marketplace add apostoldevel/claude-plugins
+/plugin install apostol-project@apostoldevel
 ```
 
-Обновление: `git -C ~/.claude/skills/apostol-project pull`. Каталог должен называться `apostol-project` — так же,
-как поле `name:` в `SKILL.md`.
+То же из командной строки: `claude plugin marketplace add apostoldevel/claude-plugins`, затем
+`claude plugin install apostol-project@apostoldevel`. Обновление: `/plugin marketplace update apostoldevel`.
 
-## Использование
+### Claude Code, для всей команды
 
-Claude Code загружает навык сам, когда задача подходит под его описание. Можно вызвать и явно: `/apostol-project`.
-Дальше агент:
+Закоммитьте в `.claude/settings.json` проекта. Кто откроет проект и доверит каталог, тому будет предложено поставить
+маркетплейс и плагин:
 
-1. читает ядро;
-2. находит свою роль в **Read by role**;
-3. открывает указанные справочники по мере надобности.
+```json
+{
+  "extraKnownMarketplaces": {
+    "apostoldevel": {
+      "source": { "source": "github", "repo": "apostoldevel/claude-plugins" }
+    }
+  },
+  "enabledPlugins": {
+    "apostol-project@apostoldevel": true
+  }
+}
+```
 
-Бриф подагенту начинайте строкой `Activate skill /apostol-project before any work.`
+### Другие агенты
 
-## Состав
+Навыки написаны в открытом формате [Agent Skills](https://agentskills.io) и ставятся без Claude Code:
 
-| Файл | Что в нём |
-|---|---|
-| `SKILL.md` | Ядро, читается целиком: роли, замысел и реализация, три уровня, имена, must-know, шаги 2, 4, 14, 15, TL;DR |
-| `anti-patterns.md` | Полный «зал позора» с выноской о планировщике и Nested Loop |
-| `reading.md` | Шаги 1 и 3: что читать при разной глубине задачи, страницы вики, навигация по сущности; подробности шага 2 |
-| `processes.md` | Шаги 5, 11, 12: пары модулей, LISTEN/NOTIFY, модель процессов, PgPool, PGFetch, репликация |
-| `db-architecture.md` | Шаг 6: схемы, роли, порядок загрузки, патчи, триггеры на таблицах платформы |
-| `entity.md` | Шаг 7: создание сущности |
-| `workflow.md` | Шаг 8: состояния, методы, действия, события |
-| `access-control.md` | Шаг 9: разграничение доступа целиком |
-| `frontend.md` | Шаг 10: куки, токены, WebSocket, выход |
-| `conventions.md` | Чек-лист шага 13, команды проверки SQL, правило README |
-| `install-pitfalls.md` | Шаг 16: подводные камни живой установки и экспорта по пинам |
-| `facts-2026-09.md` | Шаг 17: факты инвентаризации 2026-09; главнее более старого текста |
-| `report-subsystem.md` | Подсистема отчётов |
+```bash
+npx skills add apostoldevel/claude-plugins --skill apostol-project
+```
 
-## Допущения
+### Вручную
 
-- **Пути рабочего пространства.** Текст ссылается на раскладку автора:
-  - зеркала фреймворков — в `~/DevSrc/Projects/{libapostol,db/platform,apostol-repo-v2}`;
-  - эталонный проект для продакшена — `apostol-csms`.
+Навык — это каталог `plugins/<плагин>/skills/<навык>/`. Подключите его ссылкой или копией под именем навыка:
 
-  Если раскладка у вас другая, считайте эти пути указателями, а не требованием.
-- **Два поколения.**
-  - Проекты v2 работают на libapostol и держат SQL в `<project>/db/`.
-  - Проекты v1 работают на libdelphi и держат SQL в `backend/db/`.
+```bash
+git clone https://github.com/apostoldevel/claude-plugins.git ~/src/apostoldevel-claude-plugins
+ln -s ~/src/apostoldevel-claude-plugins/plugins/apostol-project/skills/apostol-project ~/.claude/skills/apostol-project
+```
 
-  Всё про C++ в навыке относится к v2.
-- **Версии.** У чисел и утверждений о функциях указана версия db-platform, на которой они измерены: 1.2.20 для
-  инвентаризации, 1.2.31 на 30.09.2026. Свою версию проверьте командой `cat <sql>/platform/VERSION`.
+## Вызов
+
+Навык из плагина вызывается своим именем: `/apostol-project`. Если рядом стоит личный или проектный навык с тем же
+именем, короткое имя достаётся ему, а навык плагина вызывается как `/apostol-project:apostol-project`. Оставьте
+что-то одно.
+
+## Устройство
+
+```
+.claude-plugin/marketplace.json               каталог
+plugins/<плагин>/.claude-plugin/plugin.json   имя, версия, лицензия
+plugins/<плагин>/skills/<навык>/SKILL.md      навык и его справочники
+plugins/<плагин>/CHANGELOG.md                 история плагина
+plugins/<плагин>/README.md                    что делает, как пользоваться
+```
+
+У каждого плагина своя версия по [semver](https://semver.org) в `plugin.json`. Версия меняется с каждой правкой:
+установленные копии обновляются по ней. Имя навыка одно везде: в `npx skills` и claude.ai имена навыков
+глобальные, без префикса плагина.
+
+Новый плагин: каталог по схеме выше, запись в `marketplace.json`, затем `claude plugin validate .`.
 
 ## Обратная связь
 
-После каждой задачи агенты оценивают навык:
-- что мешало;
-- что неверно или устарело — с `file:line` правды;
-- что лишнее;
-- до чего пришлось додуматься самим.
-
-Issues и pull request'ы принимаются на тех же условиях. Правило правки одно: в навыке остаётся только то, что верно
-для **любого** проекта. Правило одного проекта — в его `CLAUDE.md` или вики.
-
-История изменений — [CHANGELOG.md](CHANGELOG.md).
-
-## Связанные проекты
-
-- [libapostol](https://github.com/apostoldevel/libapostol) — фреймворк на C++20 (A-POST-OL)
-- [db-platform](https://github.com/apostoldevel/db-platform) — фреймворк на PostgreSQL для разработки бэкенда
-- **Apostol CRM**[^crm] — шаблонный проект, который соединяет оба фреймворка
+Issues и pull request'ы принимаются. В навыке остаётся только то, что верно для **любого** проекта на Апостоле.
+Правило одного проекта — в его `CLAUDE.md` или вики.
 
 ## Лицензия
 
-[MIT](LICENSE)
-
-[^crm]: **Apostol CRM** — шаблон-проект построенный на фреймворках [A-POST-OL](https://github.com/apostoldevel/libapostol) (C++20) и [PostgreSQL Framework for Backend Development](https://github.com/apostoldevel/db-platform).
+[MIT](LICENSE) — для всех плагинов, если в каталоге плагина не сказано иное.

@@ -1,8 +1,19 @@
 # Changelog
 
-Dates are the author's working days. The skill has no version number; a pin is a commit of this repository.
+Versions follow [semver](https://semver.org); the current one is in `.claude-plugin/plugin.json`. Dates are the
+author's working days.
 
-## 2026-09-30 — first public release
+## 1.0.0 — 2026-09-30
+
+- **Packaged as a plugin** of the `apostoldevel` marketplace. The repository `apostoldevel/skill-apostol-project` is
+  now `apostoldevel/claude-plugins`, and the skill lives in `plugins/apostol-project/skills/apostol-project/`. Its
+  text has not changed since the first release below.
+- Install: `/plugin marketplace add apostoldevel/claude-plugins`, then
+  `/plugin install apostol-project@apostoldevel`. A clone of the old repository root into
+  `~/.claude/skills/apostol-project` no longer works as a skill directory: link
+  `plugins/apostol-project/skills/apostol-project` instead.
+
+## 2026-09-30 — first public release (commit `c28294f`)
 
 - **Core halved (56 → ~31 KB).** Moved verbatim into references:
   - the Hall of Shame → `anti-patterns.md`;

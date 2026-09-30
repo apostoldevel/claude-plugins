@@ -1,0 +1,26 @@
+{
+  "name": "apostoldevel",
+  "owner": {
+    "name": "apostoldevel",
+    "url": "https://github.com/apostoldevel"
+  },
+  "metadata": {
+    "description": "Claude Code plugins for the Apostol ecosystem — libapostol (C++20) + db-platform (PostgreSQL/PL/pgSQL). One plugin per skill, each versioned on its own."
+  },
+  "plugins": [
+    {
+      "name": "apostol-project",
+      "source": "./plugins/apostol-project",
+      "description": "Working context for projects built on Apostol — libapostol + db-platform: architecture, boundaries, DB patterns, access control, anti-patterns, verification, a reading route per role.",
+      "category": "development",
+      "keywords": [
+        "apostol",
+        "libapostol",
+        "db-platform",
+        "postgresql",
+        "plpgsql",
+        "cpp20"
+      ]
+    }
+  ]
+}

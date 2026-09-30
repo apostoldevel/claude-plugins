@@ -1,114 +1,92 @@
-[![ru](https://img.shields.io/badge/lang-ru-green.svg)](https://github.com/apostoldevel/skill-apostol-project/blob/master/README.ru-RU.md)
+[![ru](https://img.shields.io/badge/lang-ru-green.svg)](README.ru-RU.md)
 
-# skill-apostol-project
+# claude-plugins
 
-An [Agent Skill](https://docs.claude.com/en/docs/claude-code/skills) for Claude Code. It gives an AI agent working
-context for projects built on the Apostol ecosystem:
-[libapostol](https://github.com/apostoldevel/libapostol) (C++20 transport) +
-[db-platform](https://github.com/apostoldevel/db-platform) (PostgreSQL framework) + the project's own configuration.
+A [Claude Code plugin marketplace](https://docs.claude.com/en/docs/claude-code/plugin-marketplaces) for the Apostol
+ecosystem: [libapostol](https://github.com/apostoldevel/libapostol) (C++20 transport) +
+[db-platform](https://github.com/apostoldevel/db-platform) (PostgreSQL framework). One plugin per skill, each with its
+own version.
 
-The skill is invoked as `/apostol-project`. Work on the frameworks themselves (libapostol, db-platform, shared
-modules) belongs to a separate skill, `/apostol`. Don't load both in one session.
+## Plugins
 
-## What the agent gets
-
-- **The three-layer model and its boundaries.** What is shared and what belongs to the project. Where a fix belongs.
-  What has to go upstream first.
-- **A reading route for each of nine roles:** SQL, C++ modules, C++ transport without db-platform, front-end, Go
-  gateway, QA, devops, audit, coordinator. The agent reads a ~30 KB core and opens only the references its task
-  needs.
-- **Platform patterns:**
-  - entities and workflow;
-  - access control: ACU / AMU / AOU, areas, the `Access<Entity>` barrier;
-  - processes: PGFetch, LISTEN/NOTIFY, replication;
-  - reports;
-  - install pitfalls.
-- **Anti-patterns:** the Hall of Shame, collected in code review across projects.
-- **Verification techniques** that work the same in every layer: how to make sure a check actually checks
-  something.
-- **Measured facts** where code and wiki disagree. Each count or version states the platform version it was measured
-  on.
+| Plugin | What it gives the agent | Version |
+|---|---|---|
+| [`apostol-project`](plugins/apostol-project/) | Working context for projects built on Apostol: three-layer architecture, ecosystem boundaries, DB patterns, access control, anti-patterns, verification, a reading route per role | [plugin.json](plugins/apostol-project/.claude-plugin/plugin.json) |
 
 ## Install
 
-The repository root is the skill directory. Clone it under the skill's name:
+### Claude Code, one user
 
-```bash
-# personal: available in every project
-git clone https://github.com/apostoldevel/skill-apostol-project.git ~/.claude/skills/apostol-project
-
-# or for one project only
-git clone https://github.com/apostoldevel/skill-apostol-project.git <project>/.claude/skills/apostol-project
+```
+/plugin marketplace add apostoldevel/claude-plugins
+/plugin install apostol-project@apostoldevel
 ```
 
-To update: `git -C ~/.claude/skills/apostol-project pull`. Keep the directory name `apostol-project`, the same as
-`name:` in `SKILL.md`.
+The same from a shell: `claude plugin marketplace add apostoldevel/claude-plugins`, then
+`claude plugin install apostol-project@apostoldevel`. To update: `/plugin marketplace update apostoldevel`.
 
-## Use
+### Claude Code, a whole team
 
-Claude Code loads the skill by itself when a task matches its description. You can also call it explicitly with
-`/apostol-project`. The agent then:
+Commit to the project's `.claude/settings.json`. Whoever opens the project and trusts the folder is offered the
+marketplace and the plugin:
 
-1. reads the core;
-2. finds its row in **Read by role**;
-3. opens the listed references as the task needs them.
+```json
+{
+  "extraKnownMarketplaces": {
+    "apostoldevel": {
+      "source": { "source": "github", "repo": "apostoldevel/claude-plugins" }
+    }
+  },
+  "enabledPlugins": {
+    "apostol-project@apostoldevel": true
+  }
+}
+```
 
-When briefing a subagent, start the brief with `Activate skill /apostol-project before any work.`
+### Other agents
+
+The skills follow the open [Agent Skills](https://agentskills.io) format and install without Claude Code:
+
+```bash
+npx skills add apostoldevel/claude-plugins --skill apostol-project
+```
+
+### By hand
+
+A skill is the directory `plugins/<plugin>/skills/<skill>/`. Link or copy it under the skill's name:
+
+```bash
+git clone https://github.com/apostoldevel/claude-plugins.git ~/src/apostoldevel-claude-plugins
+ln -s ~/src/apostoldevel-claude-plugins/plugins/apostol-project/skills/apostol-project ~/.claude/skills/apostol-project
+```
+
+## Invocation
+
+A plugin's skill is called by its own name, `/apostol-project`. If a personal or project skill of the same name is
+also installed, the short name goes to that one and the plugin's copy becomes `/apostol-project:apostol-project`.
+Keep one of the two.
 
 ## Layout
 
-| File | What it holds |
-|---|---|
-| `SKILL.md` | Core, read in full: roles, design vs implementation, three layers, naming, must-know, Steps 2, 4, 14, 15, TL;DR |
-| `anti-patterns.md` | The full Hall of Shame, with the note on the planner and Nested Loop |
-| `reading.md` | Steps 1 and 3: what to read by depth of task, wiki pages, how to navigate an entity; details of Step 2 |
-| `processes.md` | Steps 5, 11, 12: module pairing, LISTEN/NOTIFY, process model, PgPool, PGFetch, replication |
-| `db-architecture.md` | Step 6: schemas, roles, load order, patches, triggers on platform tables |
-| `entity.md` | Step 7: creating an entity |
-| `workflow.md` | Step 8: states, methods, actions, events |
-| `access-control.md` | Step 9: access control in full |
-| `frontend.md` | Step 10: cookies, tokens, WebSocket, signing out |
-| `conventions.md` | Step 13 checklist, SQL verification commands, README rule |
-| `install-pitfalls.md` | Step 16: pitfalls of a live install and of exporting by pins |
-| `facts-2026-09.md` | Step 17: facts from the 2026-09 inventory; they override older text |
-| `report-subsystem.md` | The report subsystem |
+```
+.claude-plugin/marketplace.json               the catalogue
+plugins/<plugin>/.claude-plugin/plugin.json   name, version, licence
+plugins/<plugin>/skills/<skill>/SKILL.md      the skill and its references
+plugins/<plugin>/CHANGELOG.md                 history of the plugin
+plugins/<plugin>/README.md                    what it does, how to use it
+```
 
-## Assumptions
+Each plugin carries its own [semver](https://semver.org) in its `plugin.json`, and the version changes with every
+change: installed copies are updated by it. A skill keeps the name it is installed under everywhere: in
+`npx skills` and in claude.ai skill names are global, with no plugin prefix.
 
-- **Workspace paths.** The text points to the author's layout:
-  - framework mirrors in `~/DevSrc/Projects/{libapostol,db/platform,apostol-repo-v2}`;
-  - `apostol-csms` as the production reference project.
-
-  If your layout differs, read these paths as pointers, not requirements.
-- **Two generations.**
-  - v2 projects run on libapostol and keep SQL in `<project>/db/`.
-  - v1 projects run on libdelphi and keep SQL in `backend/db/`.
-
-  The C++ parts of the skill describe v2.
-- **Versions.** Counts and claims about functions state the db-platform version they were measured on: 1.2.20 for
-  the inventory, 1.2.31 as of 30.09.2026. Check your pin with `cat <sql>/platform/VERSION`.
+Adding a plugin: the directory above, an entry in `marketplace.json`, then `claude plugin validate .`.
 
 ## Feedback
 
-After each task, agents rate the skill:
-- what got in the way;
-- what is wrong or stale, with the `file:line` of the truth;
-- what is superfluous;
-- what they had to work out themselves.
-
-Issues and pull requests are welcome on the same terms. When editing, keep only what holds on **every** project. A
-rule of a single project belongs in that project's `CLAUDE.md` or wiki.
-
-History: [CHANGELOG.md](CHANGELOG.md).
-
-## Related
-
-- [libapostol](https://github.com/apostoldevel/libapostol): the C++20 framework (A-POST-OL)
-- [db-platform](https://github.com/apostoldevel/db-platform): the PostgreSQL framework for backend development
-- **Apostol CRM**[^crm]: the template project that brings the two together
+Issues and pull requests are welcome. A skill keeps only what holds on **every** project built on Apostol. A rule of
+a single project belongs in that project's `CLAUDE.md` or wiki.
 
 ## License
 
-[MIT](LICENSE)
-
-[^crm]: **Apostol CRM** — a template project built on the [A-POST-OL](https://github.com/apostoldevel/libapostol) (C++20) and [PostgreSQL Framework for Backend Development](https://github.com/apostoldevel/db-platform) frameworks.
+[MIT](LICENSE), for every plugin unless its own directory says otherwise.
