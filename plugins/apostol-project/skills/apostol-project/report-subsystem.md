@@ -145,11 +145,11 @@ InitReport(pParent, pType, pTree, pCode, pName, pDescription) RETURNS uuid
 
 **Пример:**
 ```sql
-PERFORM InitReport(null, GetType('report.report'), uNode_debt,
-                   'debt_notification',
+PERFORM InitReport(null, GetType('report.report'), uNode_docs,
+                   'invoice_notice',
                    'Уведомление о задолженности',
                    'Формирование уведомлений о задолженности.');
--- => создаются rfc_debt_notification + rpc_debt_notification (нужно реализовать)
+-- => создаются rfc_invoice_notice + rpc_invoice_notice (нужно реализовать)
 ```
 
 ### 3.2 `InitObjectReport()` — контекстный отчёт на классе
@@ -223,7 +223,7 @@ WHEN '/trial/court_order/generate' THEN
   uReady  := BuildReport(
     uReport,
     GetType('async.report_ready'),                  -- ← async
-    jsonb_build_object('debt_id', r.id)             -- pre-filled form
+    jsonb_build_object('invoice_id', r.id)             -- pre-filled form
   );
   RETURN NEXT row_to_json(t) FROM (SELECT uReady AS report_ready_id, 'progress' AS status) t;
 ```
@@ -243,7 +243,7 @@ Frontend получает `report_ready_id`, не делает polling — по�
 формирование отчёта**:
 
 ```sql
-CREATE OR REPLACE FUNCTION report.rpc_debt_notification(
+CREATE OR REPLACE FUNCTION report.rpc_invoice_notice(
   pReady  uuid,
   pForm   jsonb default null
 ) RETURNS void AS $$
@@ -266,7 +266,7 @@ BEGIN
 
   -- 5. Если нужен async docx через микросервис — вызываем rcb_*
   IF houses IS NOT NULL THEN
-    PERFORM report.rcb_debt_notification(pReady,
+    PERFORM report.rcb_invoice_notice(pReady,
       jsonb_build_object('meta', meta, 'houses', houses));
     -- DoAction(complete) НЕ ВЫЗЫВАЕМ — это сделает callback flow
   ELSE
@@ -290,7 +290,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = kernel, public, pg_temp;
 работы через HTTP с callback'ом обратно».
 
 ```sql
-CREATE OR REPLACE FUNCTION report.rcb_debt_notification(
+CREATE OR REPLACE FUNCTION report.rcb_invoice_notice(
   pObject       uuid,         -- = pReady из rpc_*
   pPayload      jsonb,
   pMetadata     jsonb DEFAULT null
@@ -441,7 +441,7 @@ Frontend polling /report/ready/get
 
 ## 7. Memory: уже зафиксированный feedback
 
-Из памяти агента проекта debt-master (урок о завершении асинхронного отчёта):
+Урок одного проекта о завершении асинхронного отчёта:
 
 > **Async report complete:** DoAction('complete') on report_ready fires
 > immediately on 200/202 (т.е. PGFetch_done), not after callback — releases
@@ -479,7 +479,7 @@ Frontend polling /report/ready/get
 1. **Schema:** добавить колонки (если нужно) через patch + DDL
 2. **Builder:** `api.build_<code>_context(pSourceObject)` — собирает payload для микросервиса
 3. **Routine:** `report.rpc_<code>(pReady, pForm)` — извлекает params, вызывает builder, SetObjectFile HTML preview, вызывает `rcb_<code>(pReady, payload)`
-4. **Callback wrapper:** `report.rcb_<code>(pObject, pPayload, pMetadata)` — обёртка через abstraction layer (`docx.generate()` в проекте debt-master) или прямой http.fetch
+4. **Callback wrapper:** `report.rcb_<code>(pObject, pPayload, pMetadata)` — обёртка через abstraction layer (например, `docx.generate()`) или прямой http.fetch
 5. **Callback handler:** `api.<service>_callback(pObject, pPayload)` — обработка success/failed/warnings, SetObjectFile с download_url
 6. **Download handlers:** `api.<service>_download_done(pObject)` + `_download_fail(pObject)` — `DoAction(complete/fail)` после PGFile
 7. **REST callback route:** регистрация `/api/v1/callback/<service>` → `rest.callback` → `api.<service>_callback`
@@ -498,19 +498,10 @@ Frontend polling /report/ready/get
 - `backend/db/sql/platform/report/ready/event.sql` — все Event handlers (Create/Execute/Complete/Fail/Cancel/Abort/...)
 - `backend/db/sql/platform/report/api.sql` — `api.report_*` REST wrappers
 - `backend/db/sql/platform/report/ready/api.sql` — `api.report_ready_*` + `api.execute_report_ready`
-- `~/DevSrc/Projects/db/platform/wiki/` — wiki-страницы, при наличии раздела про отчёты
+- `github.com/apostoldevel/db-platform/wiki` — wiki-страницы, при наличии раздела про отчёты
 
-## 11. Reference: пример из debt-master
+## 11. Reference: как читать production-пример
 
-Самый полный production-пример — `debt_notification`:
-
-- Definition: `backend/db/sql/configuration/debt/report/init.sql:29`
-  (через `InitReport(null, GetType('report.report'), uNode_debt, 'debt_notification', ...)`)
-- `rfc_debt_notification` (form): `backend/db/sql/configuration/debt/entity/object/document/debt/training/report.sql:89`
-- `rpc_debt_notification` (main): `report.sql:176` — генерация HTML + опциональный вызов rcb для docx
-- `rcb_debt_notification` (callback to docx-service): `report.sql:19` — http.fetch с callback
-- Callback handler: `backend/db/sql/configuration/debt/entity/object/document/debt/training/callback.sql:9`
-  (`api.docx_service_callback`)
-- Download handlers: `callback.sql:64` / `:105` (`api.docx_service_download_done/_fail`)
-
-Просмотр в этом порядке даёт полное понимание pipeline на реальном production-коде.
+В своей конфигурации найдите отчёт, который зовёт внешний сервис, и читайте в таком порядке: definition
+(`report/init.sql`, `InitReport`) → `rfc_<code>` (form) → `rpc_<code>` (main) → `rcb_<code>` (callback к сервису) →
+обработчик колбэка → обработчики загрузки (`_download_done` / `_fail`). Этот порядок даёт полное понимание pipeline.

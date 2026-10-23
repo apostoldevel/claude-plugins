@@ -68,24 +68,22 @@ Paths are relative to `skills/apostol-project/`.
 | `access-control.md` | Step 9: access control in full |
 | `frontend.md` | Step 10: cookies, tokens, WebSocket, signing out |
 | `conventions.md` | Step 13 checklist, SQL verification commands, README rule |
+| `verification.md` | Step 15 in full: how to be sure before claiming done (every role) |
 | `install-pitfalls.md` | Step 16: pitfalls of a live install and of exporting by pins |
 | `facts-2026-09.md` | Step 17: facts from the 2026-09 inventory; they override older text |
 | `report-subsystem.md` | The report subsystem |
 
 ## Assumptions
 
-- **Workspace paths.** The text points to the author's layout:
-  - framework mirrors in `~/DevSrc/Projects/{libapostol,db/platform,apostol-repo-v2}`;
-  - `apostol-csms` as the production reference project.
-
-  If your layout differs, read these paths as pointers, not requirements.
+- **References.** The wikis are the public GitHub wikis of `apostoldevel/db-platform` and `apostoldevel/libapostol`.
+  "A mature configuration" means the most production-grade one you can read — your own project's first.
 - **Two generations.**
   - v2 projects run on libapostol and keep SQL in `<project>/db/`.
   - v1 projects run on libdelphi and keep SQL in `backend/db/`.
 
   The C++ parts of the skill describe v2.
 - **Versions.** Counts and claims about functions state the db-platform version they were measured on: 1.2.20 for
-  the inventory, 1.2.31 as of 30.09.2026. Check your pin with `cat <sql>/platform/VERSION`.
+  the inventory, 1.2.31 as of 30.09.2026, 1.2.35 for what was added on 23.10.2026. Check your pin with `cat <sql>/platform/VERSION`.
 
 ## Feedback
 

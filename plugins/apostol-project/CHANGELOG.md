@@ -3,6 +3,36 @@
 Versions follow [semver](https://semver.org); the current one is in `.claude-plugin/plugin.json`. Dates are the
 author's working days.
 
+## 1.1.0 — 2026-10-23
+
+From the agents' ratings of 03–23.10.2026 (about 120 entries; what holds on every project only).
+
+- **Step 15 moved to `verification.md`**, with a one-line digest of each technique left in the core (31.1 → 29.5 KB).
+  The earlier techniques are kept, two of them corrected (below). New ones: mutate the guard; a negative check needs proof that its branch ran;
+  checks that are green for the wrong reason; fixtures that are explicit and isolated; gating on a throwaway fresh install
+  and on two pins; re-measuring on volume; two roads of arrival; waiting for `rc=`; an empty search needs a control; never
+  printing a secret; runbooks and subagent reports are claims.
+- **Public text only.** Removed from the old text as well: card numbers, internal decision records, private repository
+  paths and the names of one team's projects and agents. The wikis are referenced by their public GitHub addresses; "the
+  reference project" is now "the most mature configuration you can read".
+- **Corrections:**
+  - the refusal's identifier names a family, not a guard;
+  - a `STABLE` function sees its caller's snapshot — a cause, besides the select-list order, behind "two dependent calls in one `SELECT`";
+  - the session context and what clears it now (PgPool `postgres.reset`, `ResetGatewayVars`, `ROLLBACK`);
+  - "level 3 never modifies level 2": configurations do override platform functions, so check both copies;
+  - the Go / `/api/v2` row: access also lives in the `rest.*` route, and `/api/v2` skips it.
+- **Access:** the create bit `c` guards nothing (`CheckClassAccess` has no caller); the object write trigger is the last
+  barrier, and `kernel` skips it; `IsSystem()` holds for every `client_credentials` session; probing rights honestly;
+  every door to an object; the `/api/v2` identity in `gateway.request`; restoring a temporary grant.
+- **Workflow and DB:** a state gate plus an action needs a row lock; `DoTryAction` swallows errors; one `Now()` per
+  transaction; `DeleteMethod` also removes transitions and AMU (through a trigger); patch names collide silently; a guard
+  in the function or in a trigger; where a document is born; a generic reference has no state; derived grants are a cache.
+- **Anti-patterns, pitfalls, processes:** `array_length` loop bounds; seeded passwords; `WHEN OTHERS` and secrets;
+  PL/pgSQL resolves names at run time; psql prints secrets; a base restored from a dump; the server `search_path`;
+  "Login is not possible"; `PgPool::execute()` can throw; `postgres.log` is always at debug; the `fetch.*` filter;
+  PGHTTP keeps the sender's spelling of header names; observer cost; measuring callers before narrowing a route; testing
+  code that calls out; the client mirrors the server's decision.
+
 ## 1.0.0 — 2026-09-30
 
 - **Packaged as a plugin** of the `apostoldevel` marketplace. The repository `apostoldevel/skill-apostol-project` is

@@ -1,7 +1,7 @@
-<!-- Reference of the /apostol-project skill: read on demand via the routing table in SKILL.md. Split verbatim from SKILL.md on 28.09.2026 (SERP T338; owner words: SERP DECISIONS.md 28.09, CSMS DECISIONS.md:6687). -->
+<!-- Reference of the /apostol-project skill: read on demand via the routing table in SKILL.md. -->
 ## Step 7 — Entity Creation (Production-Ready Patterns)
 
-This is where most of the work happens in a configuration project. The patterns below are extracted from the wiki **and** validated against `apostol-csms` production code + db-platform sources.
+This is where most of the work happens in a configuration project. The patterns below are extracted from the wiki **and** validated against production code + db-platform sources.
 
 ### The File Convention — 7 core + 4 optional (production reality)
 
@@ -63,14 +63,14 @@ The directory layout — `src/processes/<Name>/` vs `src/modules/Workers/<Name>/
 
 | Module | Location | Type | Registration |
 |---|---|---|---|
-| `MessageServer`, `Replication`, `ReportServer`, `TaskScheduler`, `LicenseServer` (Process) | `src/processes/` | `ProcessModule` (separate event loop + PgPool) | `app.add_custom_process(std::make_unique<X>())` in `Processes.hpp` |
+| `MessageServer`, `Replication`, `ReportServer`, `TaskScheduler` | `src/processes/` | `ProcessModule` (separate event loop + PgPool) | `app.add_custom_process(std::make_unique<X>())` in `Processes.hpp` |
 | **`StreamServer` / `PgStreamServer`** | **`src/processes/StreamServer/`** | **`Worker Module`** (UDP socket attached to worker's EventLoop) | **`app.module_manager().add_module(std::make_unique<StreamServer>(app))`** in **`Workers.hpp`** |
-| `AppServer`, `AuthServer`, `WebSocketAPI`, `PGHTTP`, `FileServer`, `WebServer`, `LicenseServer` (Worker) | `src/modules/Workers/` | `Worker Module` | `app.module_manager().add_module()` in `Workers.hpp` |
+| `AppServer`, `AuthServer`, `WebSocketAPI`, `PGHTTP`, `FileServer`, `WebServer` | `src/modules/Workers/` | `Worker Module` | `app.module_manager().add_module()` in `Workers.hpp` |
 | `PGFetch`, `PGFile` | `src/modules/Helpers/` | `Worker Module` (helper process) | `app.module_manager().add_module()` in `Helpers.hpp` |
 
 **The pitfall:** trying to register `StreamServer` via `add_custom_process(std::make_unique<StreamServer>())` fails because `StreamServer` requires `Application&` in its constructor — it's not a process. Always check the class signature: `: public Module` (Worker) vs `: public ProcessModule` (custom process).
 
-**Implication for projects extending StreamServer** (e.g. `process-NMEA`, `process-S228`): your module derives from `PgStreamServer` (with PG dispatch) or `StreamServer` (raw UDP), and registers in `Workers.hpp` — not `Processes.hpp`.
+**Implication for projects extending StreamServer** (e.g. a telemetry process such as `process-NMEA`): your module derives from `PgStreamServer` (with PG dispatch) or `StreamServer` (raw UDP), and registers in `Workers.hpp` — not `Processes.hpp`.
 
 ### View Convention (3 views — strictly)
 
@@ -133,6 +133,12 @@ GRANT SELECT ON Access<Entity> TO administrator;
                                           jsonb_build_object('old', row_to_json(old), 'new', row_to_json(new)));
 ```
 
+**The generic reference road leaves no state.** `CreateReference` (and through it `api.add_reference` / a generic
+`/reference/set`) does not run the `create` method, so the object has `state IS NULL`
+(`entity/object/reference/routine.sql:77–115`, 1.2.35); the reference views join `db.state` with an INNER JOIN
+(`reference/view.sql:82`) — the row exists and appears in no `/list`. Typed `Create<Entity>` constructors do run
+`create`. To check what such a road created, or to clean up after it, query `db.object` (`state IS NULL`), never a list.
+
 ### `api.sql` — Strict 6 Functions + 1 View
 
 | Function | Returns | Body |
@@ -145,7 +151,7 @@ GRANT SELECT ON Access<Entity> TO administrator;
 | `api.count_<entity>(pSearch, pFilter)` | `SETOF bigint` | `EXECUTE api.sql('kernel', 'Object<Entity>', pSearch, pFilter, 0, null, '{}', '["count(id)"]')` |
 | `api.list_<entity>(pSearch, pFilter, pLimit, pOffset, pOrderBy)` | `SETOF api.<entity>` | `EXECUTE api.sql('kernel', 'Object<Entity>', pSearch, pFilter, pLimit, pOffset, pOrderBy)` |
 
-> **Schema `kernel` + view `Object<Entity>` is not a style choice.** `api.sql()` attaches the access join only when `pScheme = 'kernel'`, `GetAccessMode()` is true and a view named `replace(lower(pTable),'object','access')` exists. `api.sql('api', '<entity>', …)` returns every row with **no filtering and no error** — measured 2026-09: four of seven configurations (campuscors, talking_to_ai, copyfrog, debt) route all lists this way and their 11–31 `Access<X>` views have no effect at all.
+> **Schema `kernel` + view `Object<Entity>` is not a style choice.** `api.sql()` attaches the access join only when `pScheme = 'kernel'`, `GetAccessMode()` is true and a view named `replace(lower(pTable),'object','access')` exists. `api.sql('api', '<entity>', …)` returns every row with **no filtering and no error** — measured 2026-09: four of seven configurations route all lists this way and their 11–31 `Access<X>` views have no effect at all.
 
 **All `api.*` functions:** `LANGUAGE plpgsql SECURITY DEFINER SET search_path = kernel, pg_temp`.
 
@@ -225,7 +231,7 @@ CREATE OR REPLACE FUNCTION Event<Entity>Edit(
 4. `DELETE FROM db.<entity> WHERE id = pObject;`
 5. `WriteToEventLog('W', 2000, 'drop', '...destroyed.', pObject)` — note category `'W'` and elevated priority.
 
-> **`WriteToEventLog` signature uncertainty:** The wiki shows `(category, priority, action, message, object)` (5 args). Production csms code uses `(category, priority, scope, action, message, object)` (6 args, with a `scope` like `'lifecycle'` or `'workflow'` between priority and action). **Check the actual signature** in your project after install: `\df WriteToEventLog` in psql. Use the form your platform version expects.
+> **`WriteToEventLog` signature uncertainty:** The wiki shows `(category, priority, action, message, object)` (5 args). Production code uses `(category, priority, scope, action, message, object)` (6 args, with a `scope` like `'lifecycle'` or `'workflow'` between priority and action). **Check the actual signature** in your project after install: `\df WriteToEventLog` in psql. Use the form your platform version expects.
 
 ### `init.sql` — Entity / Class / Methods / Events / Route
 
@@ -304,7 +310,7 @@ PERFORM CreateEntity<Entity>(GetClass('document'));   -- or 'reference'
 
 Two valid patterns. Pick by domain shape.
 
-**Single-table inheritance** (csms `client` example): one table `db.client` holds all subclasses (`tenant`, `employee`, `driver`, `partner`) with a discriminator column (`tenant boolean`). Subclasses differ in `o.class` lookup, not in tables.
+**Single-table inheritance** (e.g. a `client`): one table `db.client` holds all subclasses (`tenant`, `employee`, `driver`, `partner`) with a discriminator column (`tenant boolean`). Subclasses differ in `o.class` lookup, not in tables.
 
 ```sql
 -- In tenant/init.sql:
@@ -315,10 +321,10 @@ BEGIN
 END $$ ...;
 ```
 
-**Multi-table inheritance** (csms `charge_point` example): each subclass has its own table with FK to the parent entity's table. Used when subclasses have substantially different fields.
+**Multi-table inheritance** (e.g. a `charge_point`): each subclass has its own table with FK to the parent entity's table. Used when subclasses have substantially different fields.
 
 ```sql
--- charge_point.id -> document.id (NOT through device.id; charge_point is direct subclass of document in csms)
+-- charge_point.id -> document.id (NOT through device.id; charge_point is a direct subclass of document in the configuration this example comes from)
 -- For deeper hierarchies (e.g. station extending device extending document):
 CREATE TABLE db.station (
   id        uuid PRIMARY KEY,
@@ -364,6 +370,11 @@ END $$ ...;
 
 Without this, the linked user has no row-level access to their own object.
 
+**Derived grants are a cache.** Grants derived from a relationship (membership, a booking, an ownership link) live in
+`db.aou`; their writer must also **revoke or re-grant when the relationship changes**, not only grant on insert. On an
+object in a default-typed area AOU alone decides visibility (`access-control.md` § DocumentAreaTree), so a class-level
+read for a broad group there means "everyone in the scope".
+
 ### Multi-Tenant Pattern: Area ↔ Tenant Binding
 
 **Tenant code = area code** by convention. When a tenant client is created, an area with the same code is created (or already exists). `current_tenant()` resolves the tenant from the session's area:
@@ -385,7 +396,7 @@ Every `EditClassText` / `EditStateText` / `EditMethodText` / `EditTypeText` / `E
 ```sql
 PERFORM EditClassText(uClass, 'Russian text', GetLocale('ru'));
 PERFORM EditClassText(uClass, 'English text', GetLocale('en'));
--- csms covers ru, de, fr, it, es. Most other projects: ru + en minimum.
+-- Cover every locale the project ships; ru + en is the usual minimum.
 ```
 
 This is heavy boilerplate but required for production. Skipping it leaves UI labels in only one language.

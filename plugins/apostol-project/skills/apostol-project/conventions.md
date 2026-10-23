@@ -1,4 +1,4 @@
-<!-- Reference of the /apostol-project skill: read on demand via the routing table in SKILL.md. Split verbatim from SKILL.md on 30.09.2026 (owner word: CSMS DECISIONS.md:8016); later corrections are listed in apostol-csms/audit/work/apostol-project-skill/changes.md. -->
+<!-- Reference of the /apostol-project skill: read on demand via the routing table in SKILL.md. -->
 ## Step 13 — Strict Conventions Checklist
 
 Use this as a final pass before committing. Each line is non-negotiable.
@@ -37,6 +37,9 @@ Use this as a final pass before committing. Each line is non-negotiable.
 - [ ] Field projection: `JsonbToFields(r.fields, GetColumns('<entity>', 'api'))`.
 - [ ] `/<entity>/set` uses `GetRoutines('set_<entity>', 'api', ...)` introspection.
 - [ ] ELSE clause: `RETURN NEXT ExecuteDynamicMethod(pPath, pPayload);`.
+- [ ] Before narrowing what a route accepts, measure what callers send (`db.api_log`, the request log). Generated clients
+  send every key of the signature, mostly `null`, and admin lists send `filter: {}` — refuse a **non-null value**, not
+  the presence of a key. Reuse an existing error (`IncorrectJsonKey`) before registering a new code.
 
 ### Edit discipline
 
@@ -61,6 +64,16 @@ Use this as a final pass before committing. Each line is non-negotiable.
 - [ ] No `expires_in` tracking in JS — AppServer (`/api/v1`) or GatewayAPI (`/api/v2`) refreshes; a SPA with neither behind it refreshes itself on 403 ([`anti-patterns.md`](anti-patterns.md), Frontend).
 - [ ] CORS origins in `conf/oauth2/<provider>.json` `javascript_origins`.
 - [ ] Use real field names from `view.sql` / `api.sql` — never invent.
+
+### Testing code that calls out (PGFetch)
+
+- [ ] Assert on the body of the queued `http.request`, not only on the table row.
+- [ ] Feed the answer to the handler with the id of the request that was really queued — otherwise the test skips the
+  "unknown outcome" branch.
+- [ ] On a stack where PGFetch runs, every request a test queues goes to the real host — including follow-ups queued
+  after a refusal. Stub the host, or drop the requests.
+- [ ] One case of a scene per sub-block that raises its observation with its own SQLSTATE and rolls back. If the old and
+  the new body give the same result, the scene is broken, not the code.
 
 ## Writing Rule — README files
 

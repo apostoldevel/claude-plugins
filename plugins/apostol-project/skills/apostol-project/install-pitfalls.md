@@ -1,4 +1,4 @@
-<!-- Reference of the /apostol-project skill: read on demand via the routing table in SKILL.md. Split verbatim from SKILL.md on 28.09.2026 (SERP T338; owner words: SERP DECISIONS.md 28.09, CSMS DECISIONS.md:6687). -->
+<!-- Reference of the /apostol-project skill: read on demand via the routing table in SKILL.md. -->
 ## Step 16 — Pitfalls discovered during live install
 
 ### Q. `db.user` holds users *and* groups
@@ -12,6 +12,12 @@ the subquery, saying nothing about groups. Filter by `type = 'U'`.
 It fails at **runtime**. In a function with an `OUT id` parameter, `WHERE id = …` resolves to the
 parameter, and the function is created happily — `--update` passes, the first real call breaks.
 Alias the table.
+
+More generally, PL/pgSQL checks only syntax at `CREATE FUNCTION`: names, called functions and argument types are resolved
+when a statement **first executes**. A path nobody calls can carry a wrong call for years and still pass install,
+`--update` and `\df`. Prove a call resolves by running it — through a recorder function with the same signature, checking
+the arguments **by value** (two swapped `uuid` arguments pass the type check). A broken copy used as a negative control
+must be broken *syntactically* and loaded inside `BEGIN … ROLLBACK`, or loading it replaces the very function under test.
 
 ### S. The platform text is only half the picture
 
@@ -43,7 +49,7 @@ Top-level `configuration/init.sql` runs in the seed phase, after `platform/init.
 
 ### B. `DoEnable(pObject)` in `EventCreate` causes `MethodActionNotFound`
 
-csms `EventCountryCreate` ends with `PERFORM DoEnable(pObject);` to auto-activate seeded refs. **Current platform: parent class events already transition `created → enabled` via `ExecuteMethod(create)`.** Your DoEnable then fires `enable` on already-enabled object → `ERR-400-032: Object [...] method not FOUND, for action: enable. Current state: enabled.`
+An older configuration's `EventCountryCreate` ends with `PERFORM DoEnable(pObject);` to auto-activate seeded refs. **Current platform: parent class events already transition `created → enabled` via `ExecuteMethod(create)`.** Your DoEnable then fires `enable` on already-enabled object → `ERR-400-032: Object [...] method not FOUND, for action: enable. Current state: enabled.`
 
 Fix: drop `DoEnable(pObject)` from `EventCreate`. Reference rows are `enabled` after creation regardless — `Object<Entity>` view returns them through `Access<Entity>` based on AOU permissions, not state.
 
@@ -53,7 +59,7 @@ Fix: drop `DoEnable(pObject)` from `EventCreate`. Reference rows are `enabled` a
 AddAction(pId uuid, pCode text, pName text, pDescription text DEFAULT null) RETURNS uuid
 ```
 
-Platform actions occupy `00000000-0000-4000-b003-000000000000+` (54 of them). Configuration projects reserve their own slot — ship-safety uses `b003-000000000100+`. Use **fixed UUID**, not `gen_kernel_uuid()` — actions need cross-install reproducibility for regulatory binary-hash audit.
+Platform actions occupy `00000000-0000-4000-b003-000000000000+` (54 of them). Configuration projects reserve their own slot — e.g. `b003-000000000100+`. Use **fixed UUID**, not `gen_kernel_uuid()` — fixed UUIDs keep actions identical across installs (some projects audit this).
 
 ```sql
 PERFORM AddAction(
@@ -69,7 +75,7 @@ PERFORM EditActionText(
   GetLocale('ru'));
 ```
 
-`EditActionText` is **4-arg** `(action, name, description, locale)`. csms sometimes uses 3-arg form — production-correct is 4-arg.
+`EditActionText` is **4-arg** `(action, name, description, locale)`. Older configurations sometimes use the 3-arg form — production-correct is 4-arg.
 
 ### D. `SetSessionLocale('en')` before any `AddMethod`/`AddState`/`AddType`
 
@@ -102,11 +108,16 @@ grep -oE "'RU[A-Z]{3}'" entity/object/reference/port/init.sql | sort | uniq -c |
 ```
 db/sql/.env/
 ├── .env.psql                — dispatcher: \ir ./:dbname/.env.psql
-└── <dbname>/                — e.g. csms/, ship_safety/
+└── <dbname>/                — e.g. crm/
     ├── .env.psql            — bundle: \ir passwords + \ir oauth2 + project.* GUCs
     ├── passwords.psql       — \set kernel/admin/daemon/apibot + set_config('password.*')
     └── oauth2.psql          — set_config('secret.web/service/android/ios/...')
 ```
+
+**psql prints the secrets.** `psql -f` prints the result of every `SELECT`, the bundle's `SELECT set_config('secret.…', …)`
+included, and `-q` does not hide query output. Wrap such blocks in `\o /dev/null` … `\o` in the including file (`\o` does
+not nest); on an error psql still prints `LINE 1:` with the start of the value. Prove "no value in the output" with a
+canary value **and** with evidence that each hidden statement ran. The same holds for deploy hooks that run psql.
 
 **Gitignored** — passwords/secrets never go to git. Each developer/brand maintains their bundle locally; production uses ansible-vault / Vault. Skeleton stage projects often forget — symptom: `psql: ERROR: file ".env/.env.psql" does not exist` on `runme.sh --init`. Always create before installing.
 
@@ -118,7 +129,7 @@ Minimum viable structure: `AddAlgorithm` (HS256/384/512) → `AddProvider` (syst
 
 ### H. `configuration/<dbname>/make.psql` is required (even if empty)
 
-`configuration/make.psql` does `\ir ./<dbname>/make.psql`. If file missing: `psql: ERROR: file "configuration/<dbname>/make.psql": No such file or directory`. Create at minimum a placeholder. csms uses this for domain modules (ocpp/make.psql, ocpi/make.psql).
+`configuration/make.psql` does `\ir ./<dbname>/make.psql`. If file missing: `psql: ERROR: file "configuration/<dbname>/make.psql": No such file or directory`. Create at minimum a placeholder. A project can use it for its domain modules (each with its own `make.psql`).
 
 ### I. Default 5 areas auto-created on install
 
@@ -132,7 +143,7 @@ After `runme.sh --init`, `db.area` contains:
 | `all` | `a001-000000000000` | superset |
 | `<dbname>` | `a001-000000000001` | project default (= PGDATABASE) |
 
-Tenant areas + vessel areas are **NOT seeded** — created via tenant/vessel client lifecycle (`EventTenantEnable`, `EventVesselEnable`). Don't seed in `FillDataBase` before entity classes registered.
+Tenant areas + vessel areas are **NOT seeded** — created via tenant/vessel client lifecycle (e.g. `EventTenantEnable`). Don't seed in `FillDataBase` before entity classes registered.
 
 ### J. Reference view requires `r.scope = current_scope()` filter
 
@@ -188,17 +199,17 @@ configuration/<dbname>/create.psql
 
 `update.psql` mirrors but excludes `table.sql` and `init.sql` per entity. Each subdirectory needs both `create.psql` and `update.psql`, even if just `\ir` lines for child entities.
 
-### N. csms version drift on small details
+### N. Version drift in older configurations
 
-`apostol-csms` has patterns **correct for older platform** but broken now:
+Older configurations carry patterns **correct for an older platform** but broken now:
 
-| csms pattern | Current behaviour |
+| Older pattern | Current behaviour |
 |---|---|
 | `EventCountryCreate { ...; PERFORM DoEnable(pObject); }` | DoEnable double-fires; remove it (Pitfall B) |
 | `EditActionText(action, name, locale)` 3-arg | Use 4-arg `(action, name, description, locale)` |
 | `AddDefaultMethods(uClass, ARRAY['Created', ...], ARRAY[...])` | 1-arg `AddDefaultMethods(uClass)` works — defaults are sensible |
 
-When csms pattern breaks: try simplest form first; then consult `platform/workflow/init.sql` for current `AddDefaultMethods` / `DefaultMethods` source. **Platform version is the truth, not csms.**
+When an older pattern breaks: try simplest form first; then consult `platform/workflow/init.sql` for current `AddDefaultMethods` / `DefaultMethods` source. **Platform version is the truth, not an older configuration.**
 
 ### O. Verification checklist for first install of new project
 
@@ -266,27 +277,47 @@ endpoint / route / api
 **Detection (before creating new entity):**
 
 ```bash
-cd ~/DevSrc/Projects/<project>/db
+cd <project>/db
 grep -lr "CREATE TABLE db\.<your_name>\b" sql/platform/   # must return empty
 grep -lr "CREATE OR REPLACE VIEW <YourName>\b" sql/platform/   # must return empty
 ```
 
 **Fix pattern:** prefix with domain qualifier — `journal_event_type` (not `event_type`), `vessel_certificate` (not `certificate`), `document_template` (not `template`). The prefix conveys domain meaning **and** prevents collision.
 
-In ship-safety this pitfall fired during W5 task 010 — initial `event_type/` entity collided with platform `db.event_type` workflow classifier. The install crashed inside `journal_template/view.sql` (sibling entity) with «cannot rename column code to reference» because the platform `EventType` view was being recompiled against a now-shadowed `db.event_type`. Renamed entity `event_type` → `journal_event_type`. Lesson: a sibling reference table named identically to a platform table is a guaranteed install crash.
+In one project this pitfall fired — initial `event_type/` entity collided with platform `db.event_type` workflow classifier. The install crashed inside `journal_template/view.sql` (sibling entity) with «cannot rename column code to reference» because the platform `EventType` view was being recompiled against a now-shadowed `db.event_type`. Renamed entity `event_type` → `journal_event_type`. Lesson: a sibling reference table named identically to a platform table is a guaranteed install crash.
 
 ---
 
-### T. `install.psql` runs `configuration/init.sql` as `admin`, not `kernel` (SERP T305, 28.09.2026)
+### T. `install.psql` runs `configuration/init.sql` as `admin`, not `kernel` (28.09.2026)
 
 `install.psql` does `\connect :dbname admin` before `\ir './platform/init.sql'` and `\ir './configuration/init.sql'`
-(apostol-csms `db/sql/install.psql:67–71`). A guard exempting `session_user = 'kernel'` misses the install path; one
+(`db/sql/install.psql`: the `\connect … admin` before the two `\ir` lines). A guard exempting `session_user = 'kernel'` misses the install path; one
 exempting `admin` blinds the test harness and the migrations. Working form: a transaction-scoped GUC set only by
 `init.sql`, paired with `session_user = 'admin'`; `set_config(…, true)` inside an explicit `BEGIN … COMMIT` — in psql
 autocommit it is gone by the next statement.
 
-### U. `git archive` leaves out untracked files (CSMS T592, 29.09.2026)
+### U. `git archive` leaves out untracked files (29.09.2026)
 
 An export by pins (`git archive <sha>` of the tree and of each submodule) carries tracked files only. A per-environment
 bundle kept untracked (F: `db/sql/.env/<dbname>/`) is missing from it, and the first script that reads it fails
-(apostol-csms: `db-init` exit 3 on `sets.psql`). Add such bundles to the export by hand.
+(a `db-init` stops on `sets.psql`). Add such bundles to the export by hand.
+
+### V. A base restored from a dump
+
+A dump restored into a throwaway server lacks what lives outside the tables. **Roles and schema grants** (`kernel` /
+`admin` / `daemon` / `apibot`, USAGE on `kernel` / `api` / `rest`) are missing, and each gap surfaces as an unrelated
+"function … does not exist". **Database-level GUCs** (`ALTER DATABASE … SET`, such as the key `GetSecretKey` reads) must be
+set again or passed with `PGOPTIONS`; secrets stored encrypted with the source key must be re-encrypted with yours; the
+database name must equal the system audience code (G). `ALTER DATABASE … SET` reaches only new sessions — restart the
+pools, and check by connection age, not by a probe that passes.
+
+### W. The server `search_path`
+
+`sets.psql` sets `search_path = "$user", kernel, public` for the install session only. Every later connection needs the
+same value at server, database or role level — a bare `postgres` image fails the first `\connect admin` phase of a patch.
+Compose files pass it as `-c search_path=…`.
+
+### X. "Login is not possible"
+
+A sign-in refused with "Login is not possible" can be an IP rule: check `db.iptable` for the user (`ERR-400-044`,
+`admin/table.sql:771`). Through `daemon` the reason becomes `access_denied`, and the cause stays in the event log.

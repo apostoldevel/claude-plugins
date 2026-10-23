@@ -1,6 +1,6 @@
 ---
 name: apostol-project
-description: Use when working on any project built on Apostol, Apostol CRM, or db-platform (Apostol CSMS, Ship Safety ERP, Campus CORS, PlugMe, CopyFrog, Talking-To-AI, DEBT-Master, etc.). Provides everything needed to work with the project — three-layer architecture, the design vs this PostgreSQL implementation of it, ecosystem boundaries, a reading route for each of nine roles (SQL, C++, transport, front-end, Go, QA, devops, audit, coordinator), module capabilities, database patterns, access control, workflow, anti-patterns, subagent briefing rules, verification techniques, and the facts measured by the 2026-09 inventory. NOT for framework development (use /apostol for that).
+description: Use when working on any project built on Apostol, Apostol CRM, or db-platform. Provides everything needed to work with the project — three-layer architecture, the design vs this PostgreSQL implementation of it, ecosystem boundaries, a reading route for each of nine roles (SQL, C++, transport, front-end, Go, QA, devops, audit, coordinator), module capabilities, database patterns, access control, workflow, anti-patterns, subagent briefing rules, verification techniques, and the facts measured by the 2026-09 inventory. NOT for framework development (use /apostol for that).
 allowed-tools: Read
 user-invocable: true
 ---
@@ -16,8 +16,10 @@ After reading, announce: **"Apostol project context loaded."**
 ## Read by role — nine roles load this skill
 
 This file is the **core**. **Every role** reads: “The design, and this implementation of it”, the three layers,
-Naming, **Must-know**, **Step 4** (boundaries) and **Step 15** (verification — the same for every layer). The rest
-lives in references in this directory: open one when the task needs it.
+Naming, **Must-know**, **Step 4** (boundaries) and **Step 15** (verification — the same for every layer; its full text,
+[`verification.md`](verification.md), before you claim done). The rest lives in references in this directory: open one
+when the task needs it. **A task outside SQL, C++ and the front-end** (shell, compose, hooks, CI, a legal or document
+audit): Must-know, Step 4 and `verification.md` are enough — the rest of the skill will not help it.
 
 | You are | Also in the core | Open when the task needs it | Skip unless asked |
 |---|---|---|---|
@@ -25,25 +27,24 @@ lives in references in this directory: open one when the task needs it.
 | **C++ modules of the CRM stack** (AppServer, PGFetch, own Workers / processes) | Step 14 | `processes.md` · `reading.md` Tier 2 · `anti-patterns.md` (Process) | entity, workflow, front-end, conventions |
 | **C++ transport without db-platform** (own processes on bare libapostol, e.g. an OCPP Central System) | — | libapostol wiki `Architecture.md`, `Configuration.md` (`reading.md` Tier 2); `processes.md` only for PgPool and the `module.<Name>.enable` key — its modules are the CRM stack's, not a bare `CustomProcess` | Steps 6–10, 13 |
 | **Front-end** | — | `frontend.md` · `access-control.md` (what the barrier does to your data) · `anti-patterns.md` (Frontend) | Steps 6–8, 11–13 |
-| **Go / `/api/v2` behind GatewayAPI** (where a project has one) | — | `frontend.md` (tokens, cookies) · `access-control.md` (access is decided inside `api.*`) · `facts-2026-09.md` | entity, workflow, conventions |
+| **Go / `/api/v2` behind GatewayAPI** (where a project has one) | — | `frontend.md` (tokens, cookies) · `access-control.md` — access is decided in `api.*` **and** in the `rest.*` route; `/api/v2` reaches `api.*` directly and skips every refusal the route makes: list them before you open an `api.*` function to a new road (§ Every door to an object, § `/api/v2` identity) · `facts-2026-09.md` | entity, workflow, conventions |
 | **QA / cross-layer acceptance** | — | `processes.md` (PGFetch, PgPool, background paths) · `access-control.md` (ACL bits, for mutation checks) · `install-pitfalls.md` · `facts-2026-09.md` | entity, workflow, conventions |
 | **devops / release** | — | `install-pitfalls.md` (install, `--init`, export by pins) · `processes.md` (which key starts what) | Steps 6–10, 13 |
 | **Audit / review** | Step 14 | `anti-patterns.md` · `access-control.md` · `facts-2026-09.md`; a code review → `/apostol-review` | — |
 | **Coordinator** | Steps 2, 14 | `reading.md` (what goes into a brief) | the implementation references |
 
-### Where each step lives (split 28.09 and 30.09.2026)
+### Where each step lives
 
 Moved steps keep their numbers and a heading here, so "see Step 9" still resolves. All files sit in this directory:
 `anti-patterns.md` — the Hall of Shame, planner callout · `reading.md` — Steps 1, 3 (what to read, wiki pages, entity
 files) · `processes.md` — Steps 5, 11, 12 · `db-architecture.md` — 6, patches, triggers on platform tables · `entity.md` — 7 · `workflow.md` — 8 ·
 `access-control.md` — 9 · `frontend.md` — 10 · `conventions.md` — 13, SQL checks, the README rule ·
-`install-pitfalls.md` — 16 · `facts-2026-09.md` — 17, **read it before trusting a count, version or function claim:
+`install-pitfalls.md` — 16 · `verification.md` — 15, full text · `facts-2026-09.md` — 17, **read it before trusting a count, version or function claim:
 its lines override older text** · `report-subsystem.md` — reports.
 
-**After closing a card, rate the skill** (owner's word 28.09, both teams): what got in the way, what is wrong or stale
-(`file:line` of the truth), what is superfluous, what you worked out yourself. SERP —
-`ship-safety/v2/docs/wiki/common/apostol-project-skill-feedback.md`; CSMS —
-`apostol-csms/docs/wiki/common/apostol-project-skill-feedback.md`. Whoever edits this skill reads both, and keeps here
+**After a task, rate the skill**: what got in the way, what is wrong or stale (`file:line` of the truth), what is
+superfluous, what you worked out yourself — in your project's feedback file if it keeps one, or as an issue on
+`github.com/apostoldevel/claude-plugins`. Whoever edits this skill keeps here
 only what holds on **every** project: one project's rule goes to that project's `CLAUDE.md` or wiki, framework
 development goes to `/apostol`.
 
@@ -51,16 +52,17 @@ development goes to `/apostol`.
 
 This skill describes **one implementation** of the Apostol platform — the PostgreSQL one (db-platform
 1.2.x + libapostol). The design itself is older than PostgreSQL here (its first execution environment
-was Oracle, 2010–2019) and is written down separately, environment-free:
+was Oracle, 2010–2019) and is written down separately, environment-free, in three design notes (not published; the
+list and the table below are their summary):
 
-- `~/DevSrc/Projects/apostol-csms/docs/clean-architecture/platform-concept.md` — the design: objects in a class
+- `platform-concept.md` — the design: objects in a class
   tree, lifecycle as data, one universal executor, context “who / as whom / where / which workplace /
   which operating date”, three-dimensional access, a trace of every action with delivery, atomic action.
-- `…/design-vs-implementation.md` — what stayed identical across Oracle and PostgreSQL (= the design) and
+- `design-vs-implementation.md` — what stayed identical across Oracle and PostgreSQL (= the design) and
   what each environment dictated (= implementation).
-- `…/kernel-notes.md` — the 17 places where this implementation strains against the design.
+- `kernel-notes.md` — the 17 places where this implementation strains against the design.
 
-**Three boundaries fixed by the owner (12.09.2026) — do not re-argue them in project work:**
+**Three boundaries fixed by the platform's author — do not re-argue them in project work:**
 
 | First-generation slogan | Design (keep) | Implementation (this skill) |
 |---|---|---|
@@ -80,7 +82,7 @@ Apostol is a three-layer construction kit. The same stack runs seven (and counti
 
 | Level | What | You |
 |---|---|---|
-| **3 — Configuration** | YOUR project: Apostol CSMS · Campus CORS · Talking-To-AI · DEBT-Master · CopyFrog · PlugMe · Ship Safety ERP · … — the unique business logic; everything that distinguishes one project from another | **write here** |
+| **3 — Configuration** | YOUR project — the unique business logic; everything that distinguishes one project from another | **write here** |
 | **2 — Platform** (db-platform) | shared by everyone, 100 % reuse: auth · OAuth 2.0 · workflow · entity · files (S3) · pub/sub · audit log · notifications · localization · reports · registry · KLADR · … — 28 modules, 41 `rest.*` dispatchers, ~450 routes (1.2.31) | read only — not one line by configuration projects |
 | **1 — Transport** (libapostol; libdelphi on v1) | C++ server: HTTP / WebSocket / TLS / epoll, libpq async, one epoll loop — like nginx or PostgreSQL itself, not part of your project | read only |
 
@@ -90,11 +92,18 @@ Level 3 **extends** level 2 and never modifies it.
 - Configuration projects **extend** the platform via `AddEntity()`/`AddClass()`/`AddDefaultMethods()`/`AddEvent()`/`RegisterRoute()`. They **never** modify platform code.
 - The platform is consumed via well-defined APIs: `db.*` tables, `kernel.*` functions, `api.*` views/wrappers, `daemon.*` interface.
 - 28 platform modules (1.2.31; `gateway` joined 16.09.2026) give a **complete** production backend out of the box: REST API, auth, RBAC, files+S3, pub/sub, notifications, reports, localization, audit. **Nothing is missing** for a typical CRM-style project.
-- A module written for one project (e.g. Stripe for CopyFrog) drops into another (Talking-To-AI, DEBT-Master) without modification — the only file that ever changes per-project is `configuration/<dbname>/`.
+- A module written for one project (e.g. a payment provider) drops into another without modification — the only file that ever changes per-project is `configuration/<dbname>/`.
+
+**In practice a configuration does override platform functions** — by `CREATE OR REPLACE` later in the load order
+(`facts-2026-09.md` § Extension mechanism; every project redefines dozens). A platform fix then does not reach that
+project, and a rule kept in both copies drifts silently. Before you rely on a platform function or change one,
+`grep -n "FUNCTION <name>"` in both `sql/platform/` and `configuration/<dbname>/`, and verify on a fresh install, where
+the load order decides which copy wins.
 
 **Which platform you stand on:** `cat <sql>/platform/VERSION` — the only reliable version string (the repository
 carries a single tag, `v1.0.0`, so `git describe` says nothing). Pins across the ecosystem run from 1.1.4a to 1.2.31
-(30.09.2026); counts and function claims in this skill are measured on the version named next to them.
+(30.09.2026; the newest seen on 23.10.2026 is 1.2.35); counts and function claims in this skill are measured on the
+version named next to them.
 
 **Implication for the agent:** if you find yourself writing code that re-implements something the platform already provides — **stop and read the platform docs first**. The platform is far richer than it looks at first glance.
 
@@ -107,13 +116,15 @@ Confusion here causes bad work. Get this straight before writing anything.
 |------|---------------------|
 | **Apostol** | The whole ecosystem (framework + platform + projects). Casual umbrella name. |
 | **libapostol** (a.k.a. **A-POST-OL**) | The Level-1 C++20 framework: HTTP/WebSocket/TLS/epoll/libpq async. One repo: `github.com/apostoldevel/libapostol`. |
-| **db-platform** | The Level-2 PostgreSQL framework: 28 PL/pgSQL modules at 1.2.31 (`mq` added in 1.2.17, `gateway` on 16.09.2026), 41 `rest.*` dispatchers with ~450 routes, ~52-page wiki (**in the mirror `~/DevSrc/Projects/db/platform/wiki/` only** — a separate repo there, last changed 23.08.2026, so it lags the code; a project's `sql/platform/` ships no `wiki/`). One repo: `github.com/apostoldevel/db-platform`. |
-| **Apostol v2** | The current major version of the framework (C++20, JSON config, libapostol). v1 is C++14, INI config, on libdelphi — legacy, **but still in production**: plugme, copyfrog, debt-master, campus/cors, talking-to-ai (30.09.2026). The C++ parts of this skill describe v2. |
+| **db-platform** | The Level-2 PostgreSQL framework: 28 PL/pgSQL modules at 1.2.31 (`mq` added in 1.2.17, `gateway` on 16.09.2026), 41 `rest.*` dispatchers with ~450 routes, ~52-page wiki (**the GitHub wiki `github.com/apostoldevel/db-platform/wiki` only** — last changed 23.08.2026, so it lags the code; a project's `sql/platform/` ships no `wiki/`). One repo: `github.com/apostoldevel/db-platform`. |
+| **Apostol v2** | The current major version of the framework (C++20, JSON config, libapostol). v1 is C++14, INI config, on libdelphi — legacy, **but still in production** on several projects (30.09.2026). The C++ parts of this skill describe v2. |
 | **Apostol CRM** | A **template project** that puts libapostol + db-platform together with a minimal scaffold. NOT itself a product. New projects copy this scaffold. |
-| **Apostol CSMS** / **Ship Safety ERP** / **CopyFrog** / **PlugMe** / etc. | **Projects** built on the platform. Each has its own `configuration/<dbname>/` directory and adds project-specific C++ modules/processes. |
-| **`<dbname>`** (lowercase: `csms`, `ship_safety`, `debt`, …) | The configuration namespace inside a project (`sql/configuration/<dbname>/`). NOT a separate project. |
+| **A project** (any product on the stack) | Built on the platform. Each has its own `configuration/<dbname>/` directory and adds project-specific C++ modules/processes. |
+| **`<dbname>`** (lowercase, e.g. `crm`) | The configuration namespace inside a project (`sql/configuration/<dbname>/`). NOT a separate project. |
 
-**`apostol-csms`** as a reference repo: this is the most production-grade codebase in the ecosystem. When the wiki tutorial doesn't show a real-world pattern, look at `apostol-csms` for a production answer. It is an **example, not the norm**: a rule comes from the platform or from PostgreSQL, and a decision recorded in one project's `DECISIONS.md` binds that project only.
+**A mature production configuration as a reference:** when the wiki tutorial doesn't show a real-world pattern, look at
+the most production-grade configuration you can read — your own project's first. It is an **example, not the norm**: a
+rule comes from the platform or from PostgreSQL, and a decision recorded in one project binds that project only.
 
 ---
 ## Must-know — the short list (the full Hall of Shame is in [`anti-patterns.md`](anti-patterns.md))
@@ -121,7 +132,7 @@ Confusion here causes bad work. Get this straight before writing anything.
 Most rework here comes from **solving a problem the platform already solves**, or from not reading it first:
 
 1. **Never edit shared code** — `sql/platform/`, `src/lib/libapostol/` (`src/lib/delphi/` on v1), upstream module
-   sources, the mirrors in `~/DevSrc/Projects/` (`apostol-repo-v2/`, `db/platform/`). A fix there is framework work — `/apostol`.
+   sources, any local mirror of upstream (e.g. `apostol-repo-v2/`, `db/platform/`). A fix there is framework work — `/apostol`.
 2. **Never invent** routes, fields or types — read the entity's `rest.sql`, `view.sql`, `table.sql`. Query parameters
    are the platform's JSON `search` / `filter` / `orderby`, not `?status=active`. Before adding an endpoint, try the
    41 dispatchers / ~450 routes that exist: `/list` + filters, or an `observer` hook.
@@ -165,15 +176,18 @@ Entity creation, workflow design, REST dispatcher, business logic, refactor, deb
    (For framework dev — never project work — use `/apostol`.)
 
 2. **Mandatory reading list** specific to the task:
-   - For entity creation: list the relevant 8 wiki pages (70-76, 13, 04, 12, 64) + the 2 production entity examples ([`reading.md`](reading.md), Tier 1).
+   - For entity creation: list the relevant wiki pages (70-76, 13, 04, 12, 64) + two production entities you have located per [`reading.md`](reading.md) Tier 1 — give their paths in the brief.
    - For C++ module work: libapostol Architecture + Configuration + the specific module README.
    - For workflow customization: 04-Workflow + 74-Workflow-Customization + 76-Event-Handler-Guide.
 
-3. **One or two concrete production examples** (from `apostol-csms` or the project itself) to imitate. Don't make the subagent search.
+3. **One or two concrete production examples** (from the project itself or another mature configuration) to imitate. Don't make the subagent search.
 
 4. **Explicit anti-patterns checklist** for the task (relevant subset of [`anti-patterns.md`](anti-patterns.md)).
 
 5. **Verification commands** the subagent should run before claiming completion (e.g. `./runme.sh --update`, `\df WriteToEventLog`, `curl /api/v1/<entity>/list`).
+
+6. **What you will not take on trust.** The report comes back as a claim: you recount its numbers and re-run its key
+   measurement on a broken input ([`verification.md`](verification.md) § 8).
 
 Why, and what to ban from a brief — [`reading.md`](reading.md), § Step 2 details.
 
@@ -190,11 +204,9 @@ source: **moved to [`reading.md`](reading.md)**.
 
 ### What is shared vs what is yours
 
-Two generations live side by side (surveyed 30.09.2026). **v2** (apostol-csms, ship-safety/v2): SQL in a sibling
-repo `<project>/db/`, `sql/platform` and the C++ modules are git submodules, the transport is libapostol. **v1**
-(plugme, copyfrog, debt-master, campus/cors, talking-to-ai): SQL under `backend/db/`, `sql/platform` is a gitignored
-nested clone, the C++ side is Apostol v1 on libdelphi. Upstream is `github.com/apostoldevel` (a few v1 clones still
-point at `ufocomp`). The project's root `CLAUDE.md` says which layout it has. The tree below is v2:
+Two generations live side by side (surveyed 30.09.2026). **v2**: SQL in a sibling
+repo `<project>/db/`, `sql/platform` and the C++ modules are git submodules, the transport is libapostol. **v1**: SQL under `backend/db/`, `sql/platform` is a gitignored
+nested clone, the C++ side is Apostol v1 on libdelphi. Upstream is `github.com/apostoldevel` (some v1 clones still have an older upstream remote — check `git remote -v`). The project's root `CLAUDE.md` says which layout it has. The tree below is v2:
 
 ```
 project/
@@ -315,7 +327,7 @@ When solving a problem or implementing a feature, ask in this order:
    - Always check the project's DB-layer INDEX.md (`backend/db/INDEX.md` or a top-level `db/INDEX.md` — [`reading.md`](reading.md), Tier 0) and `configuration/<dbname>/INDEX.md` before exploring code.
 
 4. **Has someone already solved this in another configuration project?**
-   - Look at `apostol-csms` first. If there's a similar entity (client/charge_point/payment/etc.), copy its structure — as an example, not as a rule.
+   - Look at the most mature configuration you can read first. If there's a similar entity (a client, a device, a payment…), copy its structure — as an example, not as a rule.
 
 5. **Will my approach pass the Hall of Shame?**
    - Run through [`anti-patterns.md`](anti-patterns.md). If your code matches a ❌ row, change the approach.
@@ -330,81 +342,35 @@ When solving a problem or implementing a feature, ask in this order:
 ---
 ## Step 15 — Verification Before Completion
 
-### How to be sure — the techniques, not the knowledge
+**Every role reads [`verification.md`](verification.md) before claiming done** — the techniques with the cases that taught
+them. The digest, one line each:
 
-Collected 2026-08-24 from a day where **every finding came from a technique, not from knowing the
-architecture**. This section is deliberately about *checking*, because the rest of this skill is
-about writing.
+1. **Both directions.** A check must pass, and must **fail** on a deliberately broken input; a skipped test proves nothing
+   until you have seen it bite.
+2. **Green for the wrong reason:** zero rows, `bool_and` over NULL, a jsonb string compared as text, a row the statement's
+   snapshot cannot see.
+3. **Mutate the guard, count the reds.** A mutant that dies only on another test's tag is not pinned by yours.
+4. **"It did NOT happen" needs proof the branch ran** — a counter, a canary, the allowed role passing. An answer through
+   `http.fetch` comes later, via PGFetch, not in the REST response.
+5. **The refusal's identifier, then the guard.** `ERR-400-001/-002/-003` is one family raised by many guards: name the
+   guard after an A/B, assert "refused and state unchanged". A status code alone is not an answer; error texts are localized.
+6. **Look before the check; count the paths, fields and roads yourself** — sibling routes, the generic object routes,
+   `/api/v2`, PGHTTP. An outcome arriving by two roads is tested in every order. Measure the path the client really
+   takes (cookies vs Bearer, the real role).
+7. **Fixtures explicit, real and isolated** — never "the first suitable row"; name the base the test ran on.
+8. **Gate on a throwaway fresh install**; a patch on a copy of the previous release with data; before/after by two pins;
+   re-measure on volume after narrowing by access.
+9. **Probe inside `BEGIN … ROLLBACK`** and count side effects on your own rows only.
+10. **A `STABLE` function sees its caller's snapshot**; `now()` is constant within a transaction; a race needs two sessions;
+    PL/pgSQL resolves names at first run — prove a call by running it.
+11. **Build from the pins**; stub missing credentials; alternate the order in A/B; wait for `rc=`, not for a wrapper.
+12. **An empty search proves nothing until a control hits; never print a secret to find it.**
+13. **Comments, runbooks and subagent reports are claims** — check against the code, re-run; "could not reproduce" is
+    part of a finding.
+14. **Put the guard in the instrument, not in the reader.**
 
-**Run both directions, always.** A check exercised only against a healthy input is not a check — it
-only shows that it does not crash. It must pass, and it must **fail** on a deliberately broken
-input. Three ways this bites in one day: a grep over a bundle that reported "fixed" for both
-builds; an acceptance criterion that missed bare text because it looked for quotes; four convention
-tests that were green because they iterated over zero rows.
-
-**A test that skips is not exempt** — prove it bites before you trust the skip.
-
-**Look at what stands BEFORE the check, not at what the check verifies.** A CSRF gate on an OAuth
-callback was correct and complete — and the error branch returned earlier, so it was never reached.
-Reviewing "does the gate work" would never have found it.
-
-**Compare the comment with the code.** "The check is unconditional" over a conditional check;
-`tests/README.md` that spent three days discouraging a working path because of a defect that had
-been retracted. A document promising a guarantee that does not exist is worse than no document.
-
-**Count the paths yourself.** An author wrote "both branches"; there were three. "Both" over three
-paths is the ordinary place where one stays forgotten.
-
-**Look at the identifier of the refusal, not at the fact of refusal.** `ERR-400-001` versus
-`ERR-400-032` separated an access barrier from a workflow rule; taking "it refused" at face value
-nearly produced a wrong policy.
-
-**When credentials are missing, build a stub instead of waiting.** A cookie-clearing branch that
-"needs a real token exchange" turned out to be reachable through a third code path that touches
-neither the database nor the provider.
-
-**"Could not reproduce" is part of a finding, not its absence.** It narrows the risk and names the
-boundary; "did not check" leaves a hole later mistaken for a check.
-
-**In A/B measurement, alternate the order.** The first run in a session is slower regardless of
-mode; a "6% win" turned out to be warm-up handed to whichever mode went first.
-
-**Probe hypotheses inside a transaction with `ROLLBACK`**, and verify the counters afterwards — on
-a shared stand someone else is working next to you.
-
-**Never put two dependent calls in one `SELECT`.** Evaluation order in a select list is not
-guaranteed: `GetProvider('x')` next to `AddProvider('x')` returns null. It works nine times out of
-ten and fails in the installation script.
-
-**And the meta-lesson: written knowledge does not protect you from a trap.** An agent stepped into
-two traps he had personally documented an hour earlier. What worked was **a precondition check
-inside the tool** — "did the stub actually come up?", "is this the binary I just built?". Put the
-guard in the instrument, not in the reader.
-
-**More techniques, from the ratings of 28–29.09.2026** (CSMS and SERP, every layer):
-
-- **"Nothing was created" needs proof that the event reached the branch.** With an asynchronous answer an empty table
-  proves nothing: `http.fetch` returns at once, the far end's answer comes later via PGFetch — a callback and an event,
-  not the REST response.
-- **After an exception, look after the next step.** A call that throws rolls back its own work; claim "no side effects"
-  after the following step, not right after the refusal.
-- **Compare the state code, not the state type.** `IsEnabled` is true for every state of type `enabled`
-  (`in_progress`, `failed`, …) — "enabled" is not "in work".
-- **Error texts are localized.** `RegisterError` keeps a message per locale and returns the session's
-  (`platform/error/routine.sql:189`, `:143`); the wording of `PG_EXCEPTION_CONTEXT` follows `lc_messages`. Check the
-  error code and the invariant part (the quoted key), never an English phrase.
-- **A status code alone is not an answer.** A module can return HTTP 200 with an error in the body; check the body and
-  which module answered (`X-Request-Id`, headers).
-- **A refusal that must not need the database — test it on a dead database port.** If it still refuses, it refused
-  before the database.
-- **Build what you accept, from the pins** — not from a shared working tree: `git archive <sha>` of the tree plus
-  `git archive <pin>` of each submodule. Untracked files (per-environment bundles) stay out — add them by hand.
-
-
-
-Don't claim "done" without running these.
-
-SQL layer — the `psql` / `curl` checks after install, a new entity and a workflow change: [`conventions.md`](conventions.md), § Verification commands.
+Don't claim "done" without running these. SQL layer — the `psql` / `curl` checks: [`conventions.md`](conventions.md),
+§ Verification commands.
 
 ### Before committing
 
@@ -438,7 +404,7 @@ The ten rules of **Must-know** above, plus:
 3. **`WriteToEventLog` 6-arg `(pType, pCode, pScope, pEvent, pText, pObject)`** is the canonical form. Wrappers exist (4-arg, 5-arg) but production code always uses 6-arg with explicit scope.
 4. **`gen_kernel_uuid()` for primary keys**, never `gen_random_uuid()` directly.
 5. **`StreamServer` is a Worker Module** despite living in `src/processes/`. Register in `Workers.hpp` via `module_manager().add_module()`, not `add_custom_process()`. Same applies to anything deriving from `StreamServer`/`PgStreamServer`.
-6. **Areas are not seeded** — they're created by lifecycle event handlers of the entity that owns them (in `apostol-csms`, `CreateTenant` creates the matching area; `tenant.code = area.code`). Don't try to pre-create them in `FillDataBase`.
+6. **Areas are not seeded** — they're created by lifecycle event handlers of the entity that owns them (e.g. a tenant's create event creates its area; `tenant.code = area.code`). Don't try to pre-create them in `FillDataBase`.
 7. **Subagents need full briefing.** Skill activation + reading list + concrete examples + anti-patterns. Otherwise they work blind. **Read by role** at the top says which part of this skill is yours.
 8. **Verify before claiming done.** `\df`, smoke `curl`, evidence — not "should work".
-9. **Know the design from the implementation.** `platform-concept.md` says what the platform *is*; this skill says how PostgreSQL *does* it today, with the three owner-fixed boundaries in the section “The design, and this implementation of it”.
+9. **Know the design from the implementation.** The design says what the platform *is*; this skill says how PostgreSQL *does* it today — the three fixed boundaries are in the section “The design, and this implementation of it”.

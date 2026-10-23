@@ -1,4 +1,4 @@
-<!-- Reference of the /apostol-project skill: read on demand via the routing table in SKILL.md. Split verbatim from SKILL.md on 28.09.2026 (SERP T338; owner words: SERP DECISIONS.md 28.09, CSMS DECISIONS.md:6687). -->
+<!-- Reference of the /apostol-project skill: read on demand via the routing table in SKILL.md. -->
 ## Step 10 — Frontend Integration
 
 ### Cookie-Based Auth (the only correct way)
@@ -12,7 +12,7 @@ AuthServer implements the **Token Handler** pattern. The browser SPA never touch
 | **User** | `__Secure-AT`, `__Secure-RT`, `__Host-SID` | password / authorization_code / refresh_token / jwt-bearer grants | authorized user operations |
 | **Service** | `__Secure-SAT`, `__Secure-SRT` | client_credentials grant | **legacy** — public/guest operations minted *in the browser*; see the callout below, do not build new front-ends on it |
 
-All cookies: `HttpOnly; Secure; SameSite=None`. Browser sends them automatically.
+`__Secure-*` cookies: `HttpOnly; Secure; SameSite=None`; `__Host-SID`: `SameSite=Lax`. The browser sends them automatically.
 
 > **The session cookie is `__Host-SID`** since 2026-08-24 (upstream `module-AuthServer` /
 > `module-AppServer`). The prefix is not cosmetic: without it an unprefixed cookie set from a
@@ -139,14 +139,26 @@ Server runs the hook on every event match. Powerful for event-driven workflows w
 
 ---
 
-### Who refreshes, and signing out without AppServer (ratings 28.09.2026)
+### Hiding is not refusing — the client mirrors the server's decision
+
+A client predicate — a menu item, a route layout, a button, a money action — is a copy of a server gate, never a decision
+of its own. Find the server function that decides (the route gate, `CheckObjectAccess`, the function that classifies a
+debt) and mirror its terms from what the server returns (`whoami`), not from raw fields: `balance < 0` is a ledger fact,
+not "may pay". A section usually has two gates — the menu item and the route layout — and both call one predicate, made
+once in a shared component. A screen fed by sources behind different gates hides per source, loads with `allSettled` and
+names the missing half. `/<entity>/method` lists methods to roles that are refused on run (`access-control.md`). Write
+where the server refusal is measured (a test, `file:line`) and where it is only inferred.
+
+Test traps of a particular front-end (clocks, `waitFor`, mocks, its build) live in that project's wiki, not here.
+
+### Who refreshes, and signing out without AppServer
 
 - **Refresh** happens where the cookie is checked: AppServer for `/api/v1` (`check_auth` → `token_refresh_and_fetch`,
   `Workers/AppServer/AppServer.cpp:393–411`); `GatewayAPI` for `/api/v2` — it *is* an AppServer and inherits `check_auth`
   (`Workers/GatewayAPI/GatewayAPI.hpp:52`); a SPA served by a process without either (e.g. a device console) refreshes
-  itself on 403, and then every 403 costs it a `/oauth2/token` round-trip (apostol-csms `ocpp/frontend/app/services/api.js:37–41`).
+  itself on 403, and then every 403 costs it a `/oauth2/token` round-trip.
 - **Sign-out without AppServer**: `POST /oauth2/revoke` on AuthServer (`AuthServer.cpp` `do_revoke`, contract in the
   comment above it). The browser form needs `__Host-SID` (SameSite=Lax — proves the request came from this site) and
   `Sec-Fetch-Site: same-origin` or `none`; refused, the cookies are left alone. Send it **without a body** — a body,
-  even `{}`, switches to the token-in-body form, where an empty `token` is a 400 (SERP T339). 503 — cookies erased, the
+  even `{}`, switches to the token-in-body form, where an empty `token` is a 400. 503 — cookies erased, the
   session in the base still open (RFC 7009 §2.2.1).

@@ -1,4 +1,4 @@
-<!-- Reference of the /apostol-project skill: read on demand via the routing table in SKILL.md. Split verbatim from SKILL.md on 28.09.2026 (SERP T338; owner words: SERP DECISIONS.md 28.09, CSMS DECISIONS.md:6687). -->
+<!-- Reference of the /apostol-project skill: read on demand via the routing table in SKILL.md. -->
 ## Step 6 — Database Architecture
 
 ### Two-Layer Design
@@ -88,9 +88,9 @@ For DDL changes after install, write a patch:
 configuration/<dbname>/patch/v<major>.<minor>/P<8-digit>.sql
 ```
 
-Example: `configuration/csms/patch/v1.0/P00000078.sql`. Uncomment in `patch/patch.psql` to activate.
+Example: `configuration/crm/patch/v1.0/P00000078.sql`. Uncomment in `patch/patch.psql` to activate.
 
-**`migrate.sh`** is the automatic patch runner — preferred over manual `runme.sh --patch`. **Use the project's `db/migrate.sh`** (398 lines, phase splitting, `db.patch_log`); the copy in `db/sql/platform/migrate.sh` is an older, shadowed variant still advertised by `platform/CLAUDE.md` — do not run it:
+**`migrate.sh`** is the automatic patch runner — preferred over manual `runme.sh --patch`. **Use the project's `db/migrate.sh`** (phase splitting, `db.patch_log`); the copy in `db/sql/platform/migrate.sh` is an older, shadowed variant still advertised by `platform/CLAUDE.md` — do not run it:
 
 ```bash
 ./migrate.sh             # apply unapplied patches + update routines   (from <project>/db/)
@@ -119,6 +119,13 @@ The `kernel` user owns schemas `db`, `kernel`, `api`, `rest`, etc. and has DDL o
 
 Mixing `\connect admin` with `ALTER TABLE db.<x>` is the classic "нет доступа к схеме db" failure.
 
+#### Patch names collide silently
+
+`db.patch_log` is keyed by the patch **path** (`config/<dbname>/<ver>/P….psql`), not by its content. If two branches both
+take the next number, every base that ran the first skips the second silently (`Applied: 0`, exit 0). Take the number
+right before push, against the remote's master. To repair a base that recorded the wrong patch under the name: delete its
+`patch_log` row and run `migrate.sh` again.
+
 #### Phased execution of `\connect`-bearing patches
 
 `migrate.sh` splits any patch containing `\connect` into phases at each boundary, executes them as separate psql invocations, and **checkpoints each phase** as `<patch_name>#<n>` in `db.patch_log`. A failure in phase 2 leaves phases 0..1 marked applied; on retry, only phase 2+ re-runs.
@@ -129,7 +136,7 @@ Single-phase patches (no `\connect`) are tracked as plain `<patch_name>`. If you
 DELETE FROM db.patch_log WHERE name LIKE 'config/<dbname>/P00000012#%';
 ```
 
-### Triggers on platform tables; hooks that see only an id (ratings 28.09.2026)
+### Triggers on platform tables; hooks that see only an id
 
 - **Platform `Do*` hooks receive only the id** — no old values (`EditArea` → `DoUpdateArea(pId)`,
   `platform/admin/routine.sql:5157`, `admin/do.sql:70`). A sync "platform entity → configuration object" written in such
@@ -141,6 +148,22 @@ DELETE FROM db.patch_log WHERE name LIKE 'config/<dbname>/P00000012#%';
   EXCLUSIVE on the table — on `db.object` every read of the base queues behind it. Set `lock_timeout` in the patch.
 - **BEFORE triggers of one table fire in alphabetical order of their names** (PostgreSQL) — the name decides whether the
   platform's own checks have already run.
+- **Guard in the re-run function, or a trigger?** If every write goes through `Edit<X>` (a re-run file), put the guard
+  there — no patch, no DDL. A trigger is for writes that bypass that function, and it goes in a patch. To change a rule
+  without changing a signature, add a new core function and keep the old name as a wrapper with its old signature — no
+  overload, no patch.
+- **Close a bypass at the field's only writer**, not in its readers: find who writes the field after creation and put the
+  door there. A refusal inside a reprocessing loop that has one `EXCEPTION` block rolls back every item of the pass —
+  refusals belong at the doors, not in the batch.
+
+### Where a document is born (area)
+
+A document's area is stamped at birth from `current_area()` = `coalesce(GUC current.area, the session's area, guest)`
+(`admin/routine.sql:2910`; `CreateDocument`, `entity/object/document/routine.sql:96`, 1.2.35). Code running in a system or
+background session creates documents in **that session's** area unless it calls `SetCurrentArea` first — and restores it
+on every exit (`facts-2026-09.md` § Context and session). That area is often the default one, which makes the document visible to the
+whole scope (`access-control.md` § DocumentAreaTree). To tell "born here" from "moved here", read the object's `db.log`
+trajectory.
 
 ### Tenant ↔ Area relationship (multi-tenant pattern)
 

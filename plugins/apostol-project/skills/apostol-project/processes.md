@@ -1,4 +1,4 @@
-<!-- Reference of the /apostol-project skill: read on demand via the routing table in SKILL.md. Split verbatim from SKILL.md on 28.09.2026 (SERP T338; owner words: SERP DECISIONS.md 28.09, CSMS DECISIONS.md:6687). -->
+<!-- Reference of the /apostol-project skill: read on demand via the routing table in SKILL.md. -->
 ## Step 5 — Module Pairing & LISTEN/NOTIFY
 
 ### C++ ↔ PostgreSQL Module Pairing
@@ -100,7 +100,7 @@ All helpers and custom processes authenticate to PostgreSQL via the helper pool 
 
 ### Project-Specific Custom Processes
 
-When a project needs a custom background process (e.g. ship-safety needs `process-NMEA`), it's written **in the project repo** under `backend/src/processes/<Name>/`, inheriting the `ProcessModule` pattern:
+When a project needs a custom background process (e.g. an `NMEA` telemetry process), it's written **in the project repo** under `backend/src/processes/<Name>/`, inheriting the `ProcessModule` pattern:
 
 ```
 Application
@@ -112,7 +112,7 @@ The shell handles lifecycle; the project's class only contains domain logic. Hea
 
 ### Configuration Profiles (e.g. shore vs edge)
 
-For projects that deploy in multiple modes (Ship Safety: shore + edge), keep multiple JSON configs:
+For projects that deploy in multiple modes (e.g. shore + edge), keep multiple JSON configs:
 
 ```
 conf/default.shore.json   — workers=8, all worker modules, shore-only processes
@@ -141,34 +141,51 @@ After binding ports, the process drops to `<app-user>`. Mandatory for production
 
 ---
 
-### Facts from the ratings of 28–30.09.2026 (v2 stack; measured on the apostol-csms pins — check yours)
+### Facts of the v2 stack (measured on one project's pins — check yours)
 
 - **One key starts a module and its namesake process.** `Application::module_enabled(name)` reads
   `module.<Name>.enable` (libapostol `src/core/application.cpp:95–97`), and both `Workers.hpp` and `Processes.hpp` ask it
-  by the same name: enabling "only the module" starts the process too (apostol-csms `LicenseServer`: `Workers.hpp:36`,
-  `Processes.hpp:42`).
+  by the same name: enabling "only the module" starts the process too.
 - **`http.create_request` creates the request in `state 1`** (`platform/http/routine.sql:106–107`); `0` is only the
   table default. `state 1` without a response means "not delivered", not "in PGFetch's hands".
 - **PGFetch callbacks** (`Helpers/PGFetch`, pin `60ba319`, 30.09.2026 — the contract changed three times that week, read
   `PGFetch.cpp` `do_done` / `do_fail` of your pin): `done` and `fail` are `schema.func` names, called as
   `SELECT schema.func('<id>')` (`:573`) and `SELECT schema.func('<id>', '<message>')` (`:622`) — untyped literals, so
-  the **arity** must match: a `fail` declared `(uuid)` is never called (apostol-csms T582 — 12 such callbacks). The
+  the **arity** must match: a `fail` declared `(uuid)` is never called (one project had 12 such callbacks). The
   callback runs in one transaction with the stored response / fail mark; if it throws, both roll back and the request
-  is stored again as failed with the reason. On the pin of 28.09 a callback error was swallowed (csms-qa, T594).
+  is stored again as failed with the reason. On the pin of 28.09 a callback error was swallowed.
 - **A request sent twice.** Without `http.take` (db-platform 1.2.31) two helpers can pick the same request by id — the
   far end sees two calls, `http.response` holds one. PGFetch uses `http.take` where it exists
   (`to_regprocedure('http.take(uuid)')`, `PGFetch.cpp:167`).
 - **PgPool gives no order between its connections.** Two `execute` calls in a row may commit in either order; order per
   object is the caller's (a queue by key). A query lost with its connection after it was sent whole is **not** resent
-  by default since libapostol `f697776` (`PgRetry::never`, `include/apostol/pg.hpp:100–116`, T627); `PgRetry::if_lost`
+  by default since libapostol `f697776` (`PgRetry::never`, `include/apostol/pg.hpp:100–116`); `PgRetry::if_lost`
   resends — the old behaviour — and is chosen at the call site where a repeat is harmless.
+- **`PgPool::execute()` can throw** — opening a connection or re-arming epoll fails — and then no callback follows
+  (libapostol `src/pg/pg.cpp:1275–1284`). State set before the call and cleared only in the callback (a flag, a map
+  entry, a slot count) then hangs forever. Catch **around the call**, not around the whole function, and release the
+  state there. An exception from an I/O callback is caught by `dispatch_io`; a timer callback runs without `try`
+  (`src/core/event_loop.cpp:217–225`, `:455`).
+- **A dedicated `postgres.log` is written at debug whatever `log.level` says** (`src/core/application.cpp:2083–2091`):
+  every statement text lands in it; without the file, statements go to stderr at `log.level`. A query that carries a
+  secret literal is sent `quiet` (`PgQuery(sql, true)`, `exec_sql(…, quiet)`) — quiet also keeps the statement out of the
+  error text.
+- **`fetch.deny_internal` / `fetch.allow`** (off by default) filter only `CurlClient` and the built-in `HttpClient` — and
+  `FetchClient`, which wraps them; not `HttpProxy`, not WebSocket clients (`include/apostol/fetch_policy.hpp`). In `allow`
+  a name matches the URL host, an IP or CIDR the dialled address, an optional `:port` the port. Before you add an `allow`,
+  find who actually dials the address.
+- **PGHTTP passes request headers to SQL with the sender's spelling of each name** (`src/pg/pg_utils.cpp:202–208`). C++
+  lookups ignore case, `->>'X-Real-IP'` in SQL does not: read both spellings. In a security function "`NULL` = skip the
+  check" is a trap — refuse at the door when the header is absent. A webhook handler reachable over PGHTTP is often
+  reachable over REST too: a check on one road costs nothing if the other is open to anonymous callers.
+- **The observer pays per element × per subscriber.** A function it calls per notification is measured under the
+  publisher's load, not as a one-off call; hoist session lookups such as `current_locale()` out of per-row joins.
 - **Background roles may have their own path to the base.** Helper and custom-process pools can connect to PostgreSQL
-  directly while workers go through pgbouncer — a project setting (apostol-csms: `postgres.helper.host = $PGHOSTAPI`,
-  `backend/docker/conf/default.json:125`); attribute a query in the postgres log to its process by `%r`.
+  directly while workers go through pgbouncer — a project setting (e.g. `postgres.helper.host` pointing past pgbouncer); attribute a query in the postgres log to its process by `%r`.
 
 ## Step 12 — Replication (Distributed Deployment)
 
-For projects with shore↔edge or master↔replica topology (Ship Safety, PlugMe).
+For projects with shore↔edge or master↔replica topology (e.g. ship ↔ shore).
 
 **Critical:** Apostol Replication is **app-level**, not native PostgreSQL logical replication wire-protocol.
 
@@ -228,6 +245,6 @@ CREATE PUBLICATION apostol_repl FOR ALL TABLES;
 SELECT pg_create_logical_replication_slot('apostol_repl', 'wal2json');
 ```
 
-**Per-batch signing** (e.g. ed25519 for auditability) is **not platform default** — projects that need it (Ship Safety) must add custom payload signing in their fork of Replication or via observer hook.
+**Per-batch signing** (e.g. ed25519 for auditability) is **not platform default** — projects that need it must add custom payload signing in their fork of Replication or via observer hook.
 
 ---

@@ -1,4 +1,4 @@
-<!-- Reference of the /apostol-project skill: read on demand via the routing table in SKILL.md. Split verbatim from SKILL.md on 30.09.2026 (owner word: CSMS DECISIONS.md:8016); later corrections are listed in apostol-csms/audit/work/apostol-project-skill/changes.md. -->
+<!-- Reference of the /apostol-project skill: read on demand via the routing table in SKILL.md. -->
 ## Step 1 — Mandatory Reading at Session Start
 
 Reading is **task-tiered**. The deeper the work, the more you must read first. Skipping reading is the single largest cause of low-quality output in this ecosystem.
@@ -15,16 +15,15 @@ Reading is **task-tiered**. The deeper the work, the more you must read first. S
 
 **Don't assume `backend/db/` blindly — check for a top-level `<project>/db/` first.**
 Two layouts live side by side (surveyed 30.09.2026): the v2 projects keep SQL in a sibling
-repo `<project>/db/` (apostol-csms, ship-safety/v2 — `db/CLAUDE.md`, `db/INDEX.md`,
-`db/sql/configuration/<dbname>/INDEX.md`); the v1 projects keep it under `backend/db/` (plugme,
-copyfrog, debt-master, campus/cors, talking-to-ai); others differ again (apostol-arb: `crm/db/`).
+repo `<project>/db/` (`db/CLAUDE.md`, `db/INDEX.md`, `db/sql/configuration/<dbname>/INDEX.md`); the v1 projects keep
+it under `backend/db/`; others differ again.
 A project's own root `CLAUDE.md` always says which layout is current — read that first.
 
 ### Tier 1 — Before creating, modifying, or reviewing any entity
 
 The platform's entity system has its own contracts. Skipping any of these reads guarantees anti-patterns in the output.
 
-> **The wiki below lags the code.** It lives only in the mirror `~/DevSrc/Projects/db/platform/wiki/` — a separate git repo inside the mirror, in no project's `sql/platform/`. Its last change is 23.08.2026, while the mirror's code is at 1.2.31 (26.09.2026) and project pins run from 1.1.4a to 1.2.31: the code moves, the wiki does not. **Where the wiki and the installed code disagree, the code wins.** Read [`facts-2026-09.md`](facts-2026-09.md) (Step 17) before trusting a wiki claim — it lists the known disagreements.
+> **The wiki below lags the code.** It lives only in the GitHub wiki `github.com/apostoldevel/db-platform/wiki`, in no project's `sql/platform/`. Its last change is 23.08.2026, while the code was at 1.2.31 on 26.09.2026 and project pins run from 1.1.4a to 1.2.31: the code moves, the wiki does not. **Where the wiki and the installed code disagree, the code wins.** Read [`facts-2026-09.md`](facts-2026-09.md) (Step 17) before trusting a wiki claim — it lists the known disagreements.
 
 **db-platform wiki — concept:**
 - `04-Workflow.md` — entity / class / state / action / method / transition / event
@@ -42,27 +41,27 @@ The platform's entity system has its own contracts. Skipping any of these reads 
 - `75-REST-Endpoint-Guide.md` — dispatcher pattern, batch support, field projection
 - `76-Event-Handler-Guide.md` — event order rules, cascade, EventDrop pattern
 
-**Production reference (`~/DevSrc/Projects/apostol-csms/db/sql/configuration/csms/`):**
-- `entity/object/document/client/` — production sub-classing chain (4 sub-classes: tenant, employee, driver, partner) using single-table inheritance. 7 files + INDEX.md.
-- `entity/object/document/charge_point/` — production multi-table entity (1 master + 6 child sub-tables) with 3-state-per-`enabled`-type workflow (available/unavailable/faulted), custom actions, auto-ACL via triggers, SCD-2 history. 7 files + INDEX.md.
+**Production reference** — in the most mature configuration you can read, find two entities:
+- a sub-classing chain using **single-table** inheritance (e.g. a `client` with sub-classes tenant / employee / partner);
+- a **multi-table** entity (a master + child sub-tables) with a multi-state-per-`enabled`-type workflow, custom actions,
+  auto-ACL via triggers.
 
-> **Both csms examples illustrate different valid inheritance patterns.** Pick the right one for your domain:
-> - **Single-table** when subclasses share the same fields (tenant/employee/driver/partner all have code/name/phone/email).
-> - **Multi-table** when subclasses have substantially different fields (bridge_journal vs engine_journal).
+> **The two illustrate different valid inheritance patterns.** Pick the right one for your domain:
+> - **Single-table** when subclasses share the same fields (code/name/phone/email).
+> - **Multi-table** when subclasses have substantially different fields.
 
 **Companion reference for REPORT-related work:**
-- `~/.claude/skills/apostol-project/report-subsystem.md` — full reference for db.report (definition) vs db.report_ready (instance), sync/async report_ready as UX-label, InitReport/InitObjectReport difference, rpc_/rcb_ pipeline for async-microservice integration. **Mandatory** before creating reports or integrating doc-generation services.
+- [`report-subsystem.md`](report-subsystem.md) — full reference for db.report (definition) vs db.report_ready (instance), sync/async report_ready as UX-label, InitReport/InitObjectReport difference, rpc_/rcb_ pipeline for async-microservice integration. **Mandatory** before creating reports or integrating doc-generation services.
 
 ### Tier 2 — Before writing or modifying a C++ module / process
 
 ```
 <project>/backend/src/modules/Workers/<Name>/README.md  — module-specific contract
-~/DevSrc/Projects/libapostol/wiki/Architecture.md       — event loop, process model, module dispatch, exec_sql, PgPool, LISTEN/NOTIFY
-~/DevSrc/Projects/libapostol/wiki/Configuration.md      — JSON config, env expansion, hot reload, PG roles
+github.com/apostoldevel/libapostol/wiki/Architecture   — event loop, process model, module dispatch, exec_sql, PgPool, LISTEN/NOTIFY
+github.com/apostoldevel/libapostol/wiki/Configuration  — JSON config, env expansion, hot reload, PG roles
 ```
 
-The libapostol pages hold for **v2** projects (`src/lib/libapostol/`). The v1 projects (plugme, copyfrog,
-debt-master, campus/cors, talking-to-ai) run on libdelphi (`src/lib/delphi/`, C++14, INI config) —
+The libapostol pages hold for **v2** projects (`src/lib/libapostol/`). The v1 projects run on libdelphi (`src/lib/delphi/`, C++14, INI config) —
 their `backend/CLAUDE.md` is the guide there.
 
 ### Tier 3 — Before frontend ↔ backend integration
@@ -112,7 +111,7 @@ entity/.../<name>/                    → specific entity source (the truth)
 Read the wiki page:
 
 ```
-~/DevSrc/Projects/db/platform/wiki/
+github.com/apostoldevel/db-platform/wiki
 ├── 04-Workflow.md                — state machine: entity/class/state/action/method/transition/event
 ├── 12-Dynamic-Methods.md         — 3 ways to invoke a method via REST
 ├── 13-Query-Parameters.md        — 20 compare operators (filter / search / orderby)
@@ -153,7 +152,7 @@ Read the entity's source files:
 
 ```
 <project>/backend/src/modules/Workers/<Name>/README.md     — for project's copy
-~/DevSrc/Projects/apostol-repo-v2/module-<Name>/README.md  — upstream README (read-only)
+<upstream module repository>/README.md                     — upstream README (read-only)
 ```
 
 ### When you need to understand the REPORT SUBSYSTEM
@@ -168,7 +167,7 @@ generation through external services with callback).
 Read the dedicated reference document:
 
 ```
-~/.claude/skills/apostol-project/report-subsystem.md
+report-subsystem.md   (this skill)
 ```
 
 Mandatory before:

@@ -1,7 +1,5 @@
-<!-- Reference of the /apostol-project skill: read on demand via the routing table in SKILL.md. Split verbatim from SKILL.md on 28.09.2026 (SERP T338; owner words: SERP DECISIONS.md 28.09, CSMS DECISIONS.md:6687). -->
+<!-- Reference of the /apostol-project skill: read on demand via the routing table in SKILL.md. -->
 ## Step 9 — Access Control (full picture)
-
-> Полный разбор: проект apostol-csms → `docs/operations/access-control.md` (написан после изучения admin + ACL + area + DocumentAreaTree). Использовать тот документ при работе с multi-tenant видимостью / правами на documents / payments / invoices. Этот раздел skill'а — быстрая шпаргалка.
 
 ### Three independent dimensions of visibility
 
@@ -50,6 +48,44 @@
 > admin's rights along. The only honest path is through the `daemon` role, the way the backend
 > itself connects. Two agents independently almost reported two non-existent findings on this in a
 > single day.
+
+- **The ACU create bit `c` guards nothing by itself.** `CheckClassAccess` has no caller in the platform
+  (`workflow/routine.sql:651`, 1.2.35), and an object INSERT checks no class right: only the configuration's
+  `api.add_*` / `Create<Entity>` decides who may create.
+- **The last barrier on writing an existing object is the trigger `db.ft_object_before_update`**
+  (`CheckObjectAccess(…, B'010')`, `entity/object/table.sql:217`), not AMU — and it is skipped when `session_user` is
+  `kernel` or `postgres`. Holes therefore sit in **creation** that references someone else's object, where there is no
+  object yet to check.
+- **`IsSystem()` does not mean "our own code".** A configuration's `oauth2.sql` creates one user per OAuth2 audience (name
+  = client code) and puts it in group `system` — so every `client_credentials` session is `IsSystem()`. A guard on
+  administrative writes uses `IsAdmin()`.
+- **`oauth2.audience.code` is unique only per provider** (`oauth2/table.sql:123`): look it up together with the provider.
+
+### Probing rights honestly
+
+Measure rights under the role the request really uses, inside a rolled-back transaction. A `kernel` / `postgres`
+connection skips the object write trigger, and `admin` skips the barrier: neither proves anything about a user. Call
+`daemon.fetch` / `authorized_fetch` (v1) or `daemon.begin` / `call` / `end` (v2) as `daemon` with the role's token — and as
+`apibot` where background code writes — inside `BEGIN … ROLLBACK`. `daemon` cannot read `api` / `kernel` / `db` (some
+kernel helpers and `oauth2.*` do not resolve under it by bare name): fetch the ids you need before switching role
+(`\gset`), and read the outcome as an administrator through the same `daemon.fetch` in the same transaction. Roles
+outside the grant get `permission denied for schema daemon` — use `\set ON_ERROR_ROLLBACK on`, not `ON_ERROR_STOP`.
+
+### Every door to an object
+
+An object has more doors than its entity's routes. Besides `/<entity>/…`, these act on it by id: `/method/run|execute`,
+`/action/execute`, `/object/method/execute`, `/object/action/execute`, `/object/set`, `/object/delete/force`,
+`/object/access/set`, `/object/data/set`, `/document/set`, `/document/change/area` (1.2.35). `ExecuteDynamicMethod` resolves
+only the action segment of the path and does not check the entity segment against the object's class
+(`api/routine.sql:450`), and a method run by id bypasses `Edit<Entity>`. So put a gate in the events and in
+`Create` / `Edit`, which every door reaches — not in one route. A function may also be reached over PGHTTP and over REST:
+grep its callers, not the door named in the task. A before/after reader covers the state, `db.aou` and `db.object_data`.
+
+### `/api/v2` identity (measured on 1.2.35 — check that your pin has `gateway.request`)
+
+On `/api/v2` the verified identity is the request's row in `gateway.request`: `daemon.begin` writes it, and no role but
+`kernel` may (`gateway/table.sql:153,168`). A `daemon` connection can set the `current.*` GUCs itself — a guard that
+branches on `session_user` or reads the GUCs judges the connection, not the person (`IsGatewayRequest` in `ExecuteMethod`).
 
 ### Layer table
 
@@ -124,7 +160,7 @@ User считается членом `pArea` если у него есть `memb
 
 ### Two view patterns (Access<Entity>)
 
-**csms-pattern (production, fast):**
+**Production pattern (fast):**
 ```sql
 CREATE OR REPLACE VIEW AccessChargePoint
 AS
@@ -148,7 +184,7 @@ SELECT a.object FROM db.<entity_table> t INNER JOIN db.aou a ON a.object = t.id
                                     HAVING (...) & B'100' = B'100';
 ```
 
-Эквивалентны, csms-вариант быстрее для production.
+Эквивалентны, производственный вариант быстрее.
 
 ### `Object<Entity>` — обязательная композиция
 
@@ -194,11 +230,15 @@ CREATE OR REPLACE VIEW api.<entity> AS
 `FOR r IN SELECT id FROM db.object WHERE class = pClass AND owner <> pUserId` (`platform/workflow/routine.sql:786`, 1.2.31) —
 корневые и засевные объекты получают маску тоже. Смотрите, на что ляжет вызов, до вызова.
 
-**`CheckClassAccess` обхода для admin/system не имеет** — это голая проверка маски ACU (`workflow/routine.sql:651–658`).
+**`CheckClassAccess` обхода для admin/system не имеет** — это голая проверка маски ACU (`workflow/routine.sql:651–658`),
+и в платформе 1.2.35 её никто не вызывает (см. «What the layer names promise»).
 А засев класса `document` даёт группе `user` биты `a` и `c` (`B'11000'`, `workflow/table.sql:112`), и подклассы копируют
 ACU родителя (`:108`): «проверить бит `c`» на документе ничего не закрывает для вошедших пользователей.
 
 **`mask` у `db.acu`, `db.amu`, `db.acl` — производная `allow & ~deny`**, её ставит BEFORE-триггер
 (`workflow/table.sql:195`, `:572`; `admin/table.sql:1279`). Мутант по `mask` пуст — меняйте `allow` / `deny`.
+
+**A temporary per-object grant** (an extra bit in `db.aou` for one action, then removed) restores the **previous mask**:
+clearing the bit (`allow & ~bit`) also takes it from a legitimate holder.
 
 ---
