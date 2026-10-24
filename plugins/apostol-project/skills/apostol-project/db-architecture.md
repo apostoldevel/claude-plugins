@@ -129,6 +129,8 @@ right before push, against the remote's master. To repair a base that recorded t
 #### Phased execution of `\connect`-bearing patches
 
 `migrate.sh` splits any patch containing `\connect` into phases at each boundary, executes them as separate psql invocations, and **checkpoints each phase** as `<patch_name>#<n>` in `db.patch_log`. A failure in phase 2 leaves phases 0..1 marked applied; on retry, only phase 2+ re-runs.
+Each phase is a new connection: session settings made with `set_config(…, false)` and the platform session before a
+`\connect` are gone after it. A body that needs neither is simpler as one `kernel` phase.
 
 Single-phase patches (no `\connect`) are tracked as plain `<patch_name>`. If you change a multi-phase patch into single-phase later, you'll get an orphan `<patch_name>#0` row in `patch_log` — harmless, just noise. Clean up manually if it bothers you:
 
@@ -172,6 +174,10 @@ trajectory.
 > while the edit itself looks like any other. Changing `FillDataBase` therefore requires a patch as
 > well, or the change exists only for installations created after it. This is a silent divergence
 > between a fresh install and an updated one, and it is the same family as the next trap.
+> **The same holds for every seed**: an entity's `init.sql`, `InitConfiguration()`, an `Init<X>()` function. A module's
+> `update.psql` carries view, routine, api and rest — never `init.sql` (`workflow/update.psql`). A literal changed in a
+> seed (a price, a registry key, a flag) never reaches an existing base; an `IF … IS NULL` inside the seed guards only a
+> re-run of the seed. For a live base: a data patch, or the API that changes the value.
 
 > **`CREATE OR REPLACE VIEW` cannot change the column list** — it only appends at the end. So a
 > view whose columns you reordered or dropped installs cleanly from scratch and **fails on

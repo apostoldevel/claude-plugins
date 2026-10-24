@@ -43,7 +43,7 @@ clauses; devops — Part I Annex B and `drift.py` in a release; coordinator — 
 | **Go / `/api/v2` behind GatewayAPI** (where a project has one) | — | `frontend.md` (tokens, cookies) · `access-control.md` — access is decided in `api.*` **and** in the `rest.*` route; `/api/v2` reaches `api.*` directly and skips every refusal the route makes: list them before you open an `api.*` function to a new road (§ Every door to an object, § `/api/v2` identity) · `facts-2026-09.md` | entity, workflow, conventions |
 | **QA / cross-layer acceptance** | — | `processes.md` (PGFetch, PgPool, background paths) · `access-control.md` (ACL bits, for mutation checks) · `install-pitfalls.md` · `facts-2026-09.md` | entity, workflow, conventions |
 | **devops / release** | — | `install-pitfalls.md` (install, `--init`, export by pins) · `processes.md` (which key starts what) | Steps 6–10, 13 |
-| **Audit / review** | Step 14 | `anti-patterns.md` · `access-control.md` · `facts-2026-09.md`; a code review → `/apostol-review` | — |
+| **Audit / review** | Step 14 | `anti-patterns.md` · `access-control.md` · `facts-2026-09.md`; a code review → `/apostol-review`. Reading or describing the frameworks without changing them needs no `/apostol`: this skill and their code at the pins | — |
 | **Coordinator** | Steps 2, 14 | `reading.md` (what goes into a brief) | the implementation references |
 
 ### Where each step lives

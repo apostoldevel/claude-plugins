@@ -116,8 +116,12 @@ db/sql/.env/
 
 **psql prints the secrets.** `psql -f` prints the result of every `SELECT`, the bundle's `SELECT set_config('secret.…', …)`
 included, and `-q` does not hide query output. Wrap such blocks in `\o /dev/null` … `\o` in the including file (`\o` does
-not nest); on an error psql still prints `LINE 1:` with the start of the value. Prove "no value in the output" with a
+not nest), or end the one statement with `\g /dev/null`; on an error psql still prints `LINE 1:` with the start of the
+value. Prove "no value in the output" with a
 canary value **and** with evidence that each hidden statement ran. The same holds for deploy hooks that run psql.
+
+**A PostgreSQL role and a platform user of the same name** (`daemon`, `apibot`, a service account) have **two different
+passwords** — the role's in `pg_authid`, the user's hash in `db.user`; changing one leaves the other as it was.
 
 **Gitignored** — passwords/secrets never go to git. Each developer/brand maintains their bundle locally; production uses ansible-vault / Vault. Skeleton stage projects often forget — symptom: `psql: ERROR: file ".env/.env.psql" does not exist` on `runme.sh --init`. Always create before installing.
 

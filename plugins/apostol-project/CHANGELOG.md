@@ -3,6 +3,26 @@
 Versions follow [semver](https://semver.org); the current one is in `.claude-plugin/plugin.json`. Dates are the
 author's working days.
 
+## 1.3.0 — 2026-10-24
+
+From the agents' ratings after 1.1.0 (14 entries; what holds on every project, checked against db-platform 1.2.35).
+
+- **Workflow:** what goes with a deleted method (cascades, `method_stack`, a child method blocks the delete); a removed
+  method stays reachable through neighbouring states; class events reach the children by (class, action) through
+  `parent` events — measure what children inherit before gating a base class; event texts calling missing functions.
+- **Access:** signing in is an ACL bit checked before the password; who reads `db.user.readonly` and how `kernel` skips
+  it; a server-imposed bound on a list goes into `pFilter` (`WHERE (<search>) AND <filter>`, an empty bound admits
+  nothing); `apibot` has no `kernel`, and a `session_user` guard is not probed through `daemon`; the generic setters
+  are gone since `eac160a` and `/object/data/set` is the door of the write bit; a guard by a list of classes is no guard.
+- **DB:** every seed (`init.sql`, `InitConfiguration`, `Init<X>`) misses existing bases, not only `FillDataBase`; each
+  `\connect` phase loses session settings.
+- **Pitfalls:** `GetUser(…) IS NULL` is dead code; `\g /dev/null`; a role and a platform user of one name have two passwords.
+- **Verification:** `ERR-400-091` needs a positive control; test a shared mechanism from both sides and a rule in its own
+  words; prove a change's invariant inside the change; callers from `pg_proc.prosrc`; who acted from `owner` / `oper`, not
+  from timing; "not read" is not "not said"; script-check a subagent's citations.
+- Reading or describing the frameworks without changing them needs no `/apostol`; the full request path is in the
+  specification, Part 0 clause 6.
+
 ## 1.2.0 — 2026-10-24
 
 - **The Apostol Specification in the reading route.** Where a project carries it (`docs/spec/`, the repository

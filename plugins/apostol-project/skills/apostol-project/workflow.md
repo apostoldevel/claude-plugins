@@ -53,7 +53,21 @@ IF GetObjectStateCode(uObj) <> 'available' THEN PERFORM DoAction(uObj, 'availabl
   (`entity/object/routine.sql:495–510`). A unique index over a `DEFAULT Now()` column refuses two rows with one key in one
   transaction. A test that needs distinct history steps runs them as separate committed transactions.
 - **`DeleteMethod` removes the method's transitions and AMU too** — through the BEFORE DELETE trigger
-  `t_method_before_delete` (`workflow/table.sql:518–535`), not in its own body. Count what disappears before and after.
+  `t_method_before_delete` (`workflow/table.sql:518–535`), not in its own body. `db.method_text`, `db.amu`, `db.oma` and
+  `db.notification` go by `ON DELETE CASCADE` (`workflow/table.sql:432`, `:542`; `entity/object/table.sql:393`;
+  `notification/table.sql:14`), `db.method_stack` in `DeleteMethod` itself (`workflow/routine.sql:1946`). `db.method.parent`
+  has no `ON DELETE` (`workflow/table.sql:397`): a child method blocks the delete — look for one first. Count what
+  disappears before and after.
+- **Removing a method from one state does not remove its effect.** The same result may still be reachable through
+  neighbouring states (delete → restore → enable → …). Walk `db.transition` from every state that can reach the target, by
+  data rather than by method names, and probe each chain you find.
+- **Class events reach the children by (class, action), not by method.** `ExecuteAction(class, action)` runs that class's
+  events for the action; an event of type `parent` ("Parent class events") recurses into the parent class for the same
+  action (`entity/object/routine.sql:744–751`). A gate added to a base class's event runs for every child class that keeps a
+  `parent` row for that action. Before placing it, list which actions the children inherit (`db.event` by class and
+  action): a gate on `create` / `open` / `edit` / `save` of a base class refuses ordinary users in their own flow.
+- **An event text may call a function that does not exist.** `AddEvent` stores text; it fails only when the action runs.
+  Compare the function names in `db.event.text` with `pg_proc` on an installed base.
 
 ### Multi-state per state type
 

@@ -1,6 +1,10 @@
 <!-- Reference of the /apostol-project skill: read on demand via the routing table in SKILL.md. -->
 ## Step 5 — Module Pairing & LISTEN/NOTIFY
 
+The whole path of a request through every layer, both directions (nginx → AppServer → `daemon.*` → `api.run` → `rest.*`;
+GatewayAPI → Go → `daemon.begin/call/end`; `pg_notify` → PGFetch / MessageServer / PGFile), with one figure: the Apostol
+Specification, Part 0 clause 6, where your project carries it.
+
 ### C++ ↔ PostgreSQL Module Pairing
 
 Every C++ module is **paired** with db-platform PL/pgSQL modules. This is the core architectural pattern:

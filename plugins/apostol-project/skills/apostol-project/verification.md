@@ -37,6 +37,14 @@ setup a positive control too: the same run with correct input passes.
 - **After an exception, look after the next step.** A call that throws rolls back its own work; claim "no side effects"
   after the following step, not right after the refusal.
 
+**A change meant to touch exactly N rows of a shared mechanism is tested from both sides**: the N changed, and their
+neighbours unchanged — a mutant "barred three more accounts" survives a test that looks only at the three. An invariant
+of the change itself ("the patch does not touch passwords") is proven inside the change — a fingerprint before and after
+under `REPEATABLE READ` — not by a test of the result.
+
+**Test a rule in its own words.** "Refuse an unknown type" is tested with a type that does not exist today (create it in
+the test's transaction), not with today's single case.
+
 ### 2. What a refusal proves
 
 **Look at the identifier of the refusal, then prove which guard gave it.** `ERR-400-001` versus `ERR-400-032` separated an
@@ -46,6 +54,8 @@ and are raised by the object write trigger, by project gates and by the method r
 the object. Name the guard only after an A/B with the guard removed. Assert "refused **and** state unchanged", and that
 the allowed role passes the same request.
 
+- **`ERR-400-091` (route not found, `error/init.sql:736`) comes from a typo and from a removed branch alike.** A test that a
+  route is closed needs a positive control: a live neighbouring route of the same dispatcher answers on the same request.
 - **A status code alone is not an answer.** A module can return HTTP 200 with an error in the body; check the body and
   which module answered (`X-Request-Id`, headers).
 - **A refusal that must not need the database — test it on a dead database port.** If it still refuses, it refused
@@ -142,6 +152,8 @@ command line. Capture `rc` into a variable at once: `echo "$(cmd) rc=$?"` report
 `--recurse-submodules` — and `sql/platform` and the C++ modules are submodules; tools that honour ignore files skip what
 you need; an empty pattern (`grep -F "$v"` with `v=""`) matches everything; `wc -l` of an empty string is 1. Run each
 pattern on a synthetic positive first, and say which perimeter you searched (tracked files are not the untracked `.env`).
+Callers of a SQL function are listed from `pg_proc.prosrc` on a base installed at the pin — it holds what really loaded,
+overrides included — and the tree is searched by explicit paths.
 
 **Never print a secret to find it.** On a shared base or tree print setting and env **names** (`cut -d= -f1`), never
 values — a `PASSWORD|SECRET` filter misses a password inside a DSN. Classify hits by `file:line`, length and character
@@ -164,6 +176,15 @@ and raise nothing.
 an audit's "wrong" against the code before you edit. Changes made after a review go to a second pass — a result the
 reviewer did not see is not reviewed. Brief a reviewer with "what else reaches the same state", not only "is the diff
 right".
+
+**Who started it is read from the object, not from the clock.** A coincidence in time is not a cause: read the object's
+`owner` and `oper` (`entity/object/table.sql:16`) and its state history before naming who acted.
+
+**"Not read" is not "not said".** When a page-reading tool does not return an anchored section of a large reference
+(`#some_call`), record that the section was not read — never that the documentation is silent.
+
+**Citations a subagent wrote are checked by a script against the pins** (`component:path:line` resolves at its commit) —
+line numbers shift after `cat -n` of several files.
 
 **"Could not reproduce" is part of a finding, not its absence.** It narrows the risk and names the
 boundary; "did not check" leaves a hole later mistaken for a check.

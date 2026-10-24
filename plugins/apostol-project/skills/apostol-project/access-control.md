@@ -56,6 +56,17 @@
   (`CheckObjectAccess(…, B'010')`, `entity/object/table.sql:217`), not AMU — and it is skipped when `session_user` is
   `kernel` or `postgres`. Holes therefore sit in **creation** that references someone else's object, where there is no
   object yet to check.
+- **Signing in is an ACL bit too.** `Login()` checks the last bit of `db.acl` (`B'…0001'`) **before** the password and
+  refuses with `AccessDenied` (`ERR-400-001`), not with a login error (`admin/routine.sql:6690`, password at `:6714`, 1.2.35).
+  An account barred from signing in is a `deny` of that bit (`chmod`), and a test of it expects the access family.
+- **`db.user.readonly`** is read by `UpdateUser`, `UpdateGroup`, `SetPassword` and `SignIn` (`admin/routine.sql:3959`,
+  `:4066`, `:4338`, `:6819`) and set on insert for the system names and the OAuth2 audiences (`admin/table.sql:245–246`).
+  `UpdateUser` and `SetPassword` skip both the right and the flag when `session_user = 'kernel'` (`:3952`, `:4331`): a test
+  under `kernel` never sees the flag, and an install that runs as `admin` must set `readonly` **after** `SetPassword`.
+- **A server-imposed bound on a list goes into `pFilter`, never into `pSearch`.** `api.sql()` builds
+  `WHERE (<search>) AND <filter>`: the filter is applied to the result of the whole search whatever `AND` / `OR` the caller
+  sends, and a bound with nothing in it (null, `''`, `[]`) admits no row (`api/api.sql:240–245`, `:383–389`; db-platform
+  1.2.35 from commit `02c5ff8`). On an older pin check before you rely on it: `grep -n "'bound'" sql/platform/api/api.sql`.
 - **`IsSystem()` does not mean "our own code".** A configuration's `oauth2.sql` creates one user per OAuth2 audience (name
   = client code) and puts it in group `system` — so every `client_credentials` session is `IsSystem()`. A guard on
   administrative writes uses `IsAdmin()`.
@@ -70,16 +81,27 @@ connection skips the object write trigger, and `admin` skips the barrier: neithe
 kernel helpers and `oauth2.*` do not resolve under it by bare name): fetch the ids you need before switching role
 (`\gset`), and read the outcome as an administrator through the same `daemon.fetch` in the same transaction. Roles
 outside the grant get `permission denied for schema daemon` — use `\set ON_ERROR_ROLLBACK on`, not `ON_ERROR_STOP`.
+`apibot` has `api`, `daemon` and `rest` but not `kernel` (`kernel/schema.sql:14–16`): set the platform session and look up
+type and class ids before `SET SESSION AUTHORIZATION apibot`. A guard on `session_user` (e.g. "`kernel` only") cannot be
+probed through the `daemon` road at all — `daemon` has USAGE on `daemon` alone (`kernel/schema.sql:13`); call the
+function directly as `admin` and as `apibot`, and prove an administrator's refusal with an administrator user on a
+non-`kernel` connection.
 
 ### Every door to an object
 
 An object has more doors than its entity's routes. Besides `/<entity>/…`, these act on it by id: `/method/run|execute`,
-`/action/execute`, `/object/method/execute`, `/object/action/execute`, `/object/set`, `/object/delete/force`,
-`/object/access/set`, `/object/data/set`, `/document/set`, `/document/change/area` (1.2.35). `ExecuteDynamicMethod` resolves
+`/action/execute`, `/object/method/execute`, `/object/action/execute`, `/object/delete/force`, `/object/access/set`,
+`/object/data/set`, `/document/change/area` (1.2.35). The generic setters `/object/set`, `/document/set`, `/reference/set`
+are gone since commit `eac160a`, and `api.add_` / `api.update_` of `object`, `document` and `reference` refuse every
+connection but `kernel`'s — a pin before it still has them. `/object/data/set` is the door of the object write bit:
+`api.set_object_data` asks `CheckObjectAccess(…, B'010')` itself (`entity/object/api.sql:1384`), while an entity's own
+`/…/set` refuses by its own rules even behind an open door. `ExecuteDynamicMethod` resolves
 only the action segment of the path and does not check the entity segment against the object's class
 (`api/routine.sql:450`), and a method run by id bypasses `Edit<Entity>`. So put a gate in the events and in
 `Create` / `Edit`, which every door reaches — not in one route. A function may also be reached over PGHTTP and over REST:
 grep its callers, not the door named in the task. A before/after reader covers the state, `db.aou` and `db.object_data`.
+A guard by a list of classes, or "everyone except the administrator", is not a guard for a family of doors: every class
+added later, and the excepted role, keep the door open — close the road itself.
 
 ### `/api/v2` identity (measured on 1.2.35 — check that your pin has `gateway.request`)
 
