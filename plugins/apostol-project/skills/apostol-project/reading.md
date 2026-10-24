@@ -19,6 +19,10 @@ repo `<project>/db/` (`db/CLAUDE.md`, `db/INDEX.md`, `db/sql/configuration/<dbna
 it under `backend/db/`; others differ again.
 A project's own root `CLAUDE.md` always says which layout is current — read that first.
 
+**Where the project carries the Apostol Specification** (`docs/spec/`): before changing the behaviour of a file, also
+`python3 docs/spec/tools/where.py <file>` — the blocks, requirements and known deviations of that code (SKILL.md, Read by
+role). Read the block it names, not the Part.
+
 ### Tier 1 — Before creating, modifying, or reviewing any entity
 
 The platform's entity system has its own contracts. Skipping any of these reads guarantees anti-patterns in the output.

@@ -3,6 +3,14 @@
 Versions follow [semver](https://semver.org); the current one is in `.claude-plugin/plugin.json`. Dates are the
 author's working days.
 
+## 1.2.0 — 2026-10-24
+
+- **The Apostol Specification in the reading route.** Where a project carries it (`docs/spec/`, the repository
+  `apostoldevel/apostol-spec`), every role reads it by the code it touches: `where.py <file>[:<line>]` before changing
+  behaviour, the block it names with its known deviations, `drift.py` for staleness; the code stays the evidence. A
+  starting point by role is in *Read by role*; Tier 0 of `reading.md` names the tool.
+- `facts-2026-09.md` is overridden, at its pins, by a project's specification measured at a later version.
+
 ## 1.1.0 — 2026-10-23
 
 From the agents' ratings of 03–23.10.2026 (about 120 entries; what holds on every project only).

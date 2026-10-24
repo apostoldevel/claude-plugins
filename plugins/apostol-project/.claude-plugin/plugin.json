@@ -1,6 +1,6 @@
 {
   "name": "apostol-project",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Working context for projects built on Apostol — libapostol (C++20) + db-platform (PostgreSQL/PL/pgSQL): three-layer architecture, ecosystem boundaries, DB patterns, access control, anti-patterns, verification, a reading route per role.",
   "author": {
     "name": "apostoldevel",

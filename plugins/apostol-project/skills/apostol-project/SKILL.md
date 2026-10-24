@@ -21,6 +21,19 @@ Naming, **Must-know**, **Step 4** (boundaries) and **Step 15** (verification —
 when the task needs it. **A task outside SQL, C++ and the front-end** (shell, compose, hooks, CI, a legal or document
 audit): Must-know, Step 4 and `verification.md` are enough — the rest of the skill will not help it.
 
+**The specification, where your project carries it.** The Apostol Specification (`github.com/apostoldevel/apostol-spec`,
+private to the organisation; in a project usually the submodule `docs/spec/`) is the as-built map of the platform —
+Part I `libapostol` and its modules, Part II `db-platform` and API v1, Part III `go-platform` and API v2 — and one Part
+per project. Every requirement cites its source line at a pinned commit; every known defect is a row `<CODE>.DEV.nn`.
+It is about 2 MB: **read it by the code you touch, never whole.** Before changing behaviour run
+`python3 docs/spec/tools/where.py <file>[:<line>]` (or a function or route name) and read the block it names with its
+deviations; a fix of a deviation names its id. `drift.py` lists the blocks a newer commit may have made stale. The code
+stays the evidence: where `where.py` says the file changed after its pin, the code wins. Where to start by role: SQL —
+Part II and your project's Part; C++ modules — Part I module blocks, clause 05 (transport ↔ database), Annex B (keys);
+bare transport — Part I `libapostol` blocks; front-end — Part II clause 09 with Annex A (routes and their gates), Part
+III clause 07, Part I `AUS`; Go — Part III, Part II `GTW` and `DMN`; QA and audit — the deviation tables and the `90`
+clauses; devops — Part I Annex B and `drift.py` in a release; coordinator — the root index and Part 0.
+
 | You are | Also in the core | Open when the task needs it | Skip unless asked |
 |---|---|---|---|
 | **SQL / configuration** (`configuration/<dbname>/`) | Step 14 | `reading.md` Tiers 0–1 · `db-architecture.md` · `entity.md` · `workflow.md` · `access-control.md` · `anti-patterns.md` · `facts-2026-09.md` · before commit `conventions.md` · fresh base `install-pitfalls.md` | `frontend.md`; `processes.md` unless you touch `http` / PGFetch / jobs |
@@ -40,7 +53,7 @@ Moved steps keep their numbers and a heading here, so "see Step 9" still resolve
 files) · `processes.md` — Steps 5, 11, 12 · `db-architecture.md` — 6, patches, triggers on platform tables · `entity.md` — 7 · `workflow.md` — 8 ·
 `access-control.md` — 9 · `frontend.md` — 10 · `conventions.md` — 13, SQL checks, the README rule ·
 `install-pitfalls.md` — 16 · `verification.md` — 15, full text · `facts-2026-09.md` — 17, **read it before trusting a count, version or function claim:
-its lines override older text** · `report-subsystem.md` — reports.
+its lines override older text; a project's specification, measured at a later pin, overrides both — at its pins** · `report-subsystem.md` — reports.
 
 **After a task, rate the skill**: what got in the way, what is wrong or stale (`file:line` of the truth), what is
 superfluous, what you worked out yourself — in your project's feedback file if it keeps one, or as an issue on
