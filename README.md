@@ -12,6 +12,7 @@ named team of agents. One plugin per skill, each with its own version.
 | Plugin | What it gives the agent | Version |
 |---|---|---|
 | [`apostol-project`](plugins/apostol-project/) | Working context for projects built on Apostol: three-layer architecture, ecosystem boundaries, DB patterns, access control, anti-patterns, verification, a reading route per role | [plugin.json](plugins/apostol-project/.claude-plugin/plugin.json) |
+| [`apostol`](plugins/apostol/) | Developing the frameworks themselves — libapostol, db-platform, the shared C++ modules and processes: the submodule loop, the specification as the map, process model, plug-in contract, the contracts a platform change must keep. Never in one session with `apostol-project` | [plugin.json](plugins/apostol/.claude-plugin/plugin.json) |
 | [`agent-team`](plugins/agent-team/) | Development as a visible named team of agents: roles, a git board, a working day on the owner's word, the owner's word by record; tested hook templates — write barrier, briefing, context guard, output filter | [plugin.json](plugins/agent-team/.claude-plugin/plugin.json) |
 
 ## Install
@@ -21,6 +22,7 @@ named team of agents. One plugin per skill, each with its own version.
 ```
 /plugin marketplace add apostoldevel/claude-plugins
 /plugin install apostol-project@apostoldevel
+/plugin install apostol@apostoldevel
 /plugin install agent-team@apostoldevel
 ```
 

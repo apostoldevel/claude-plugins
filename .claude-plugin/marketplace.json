@@ -23,6 +23,21 @@
       ]
     },
     {
+      "name": "apostol",
+      "source": "./plugins/apostol",
+      "description": "Framework development for Apostol — libapostol (C++20), db-platform (PostgreSQL/PL/pgSQL), shared C++ modules and processes: the submodule loop, the specification as the map, process model, plug-in contract, the contracts a platform change must keep.",
+      "category": "development",
+      "keywords": [
+        "apostol",
+        "libapostol",
+        "db-platform",
+        "framework",
+        "postgresql",
+        "plpgsql",
+        "cpp20"
+      ]
+    },
+    {
       "name": "agent-team",
       "source": "./plugins/agent-team",
       "description": "Development as a visible named team of Claude Code agents: roles, a git board, a working day on the owner's word, the owner's word by record — with tested hook templates (write barrier, briefing, context guard, output filter).",

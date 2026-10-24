@@ -12,6 +12,7 @@
 | Плагин | Что получает агент | Версия |
 |---|---|---|
 | [`apostol-project`](plugins/apostol-project/) | Рабочий контекст для проектов на Апостоле: трёхуровневая модель, границы экосистемы, приёмы работы с БД, разграничение доступа, антипаттерны, проверка, маршрут чтения для каждой роли | [plugin.json](plugins/apostol-project/.claude-plugin/plugin.json) |
+| [`apostol`](plugins/apostol/) | Разработка самих фреймворков — libapostol, db-platform, общие модули и процессы на C++: цикл подмодуля, спецификация как карта, модель процессов, контракт модулей, контракты, которые правка платформы обязана сохранить. Не в одной сессии с `apostol-project` | [plugin.json](plugins/apostol/.claude-plugin/plugin.json) |
 | [`agent-team`](plugins/agent-team/) | Разработка видимой командой именованных агентов: роли, доска в git, рабочий день по слову владельца, слово владельца записью; проверенные шаблоны хуков — барьер записи, брифинг, страж контекста, фильтр вывода | [plugin.json](plugins/agent-team/.claude-plugin/plugin.json) |
 
 ## Установка
@@ -21,6 +22,7 @@
 ```
 /plugin marketplace add apostoldevel/claude-plugins
 /plugin install apostol-project@apostoldevel
+/plugin install apostol@apostoldevel
 /plugin install agent-team@apostoldevel
 ```
 

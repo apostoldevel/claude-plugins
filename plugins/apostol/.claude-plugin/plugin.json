@@ -1,0 +1,13 @@
+{
+  "name": "apostol",
+  "version": "1.0.0",
+  "description": "Framework development for Apostol — libapostol (C++20), db-platform (PostgreSQL/PL/pgSQL) and the shared C++ modules and processes (incl. GatewayAPI): the submodule loop, the specification as the map, process model, plug-in contract, schemas and roles, the contracts a platform change must keep, v1→v2 porting.",
+  "author": {
+    "name": "apostoldevel",
+    "url": "https://github.com/apostoldevel"
+  },
+  "homepage": "https://github.com/apostoldevel/claude-plugins/tree/master/plugins/apostol",
+  "repository": "https://github.com/apostoldevel/claude-plugins",
+  "license": "MIT",
+  "keywords": ["apostol", "libapostol", "db-platform", "framework", "postgresql", "plpgsql", "cpp20", "agent-skills"]
+}
