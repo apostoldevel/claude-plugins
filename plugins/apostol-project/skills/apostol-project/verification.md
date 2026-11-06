@@ -13,7 +13,13 @@ input. Three ways this bites in one day: a grep over a bundle that reported "fix
 builds; an acceptance criterion that missed bare text because it looked for quotes; four convention
 tests that were green because they iterated over zero rows.
 
-**A test that skips is not exempt** — prove it bites before you trust the skip.
+**A test that skips is not exempt** — prove it bites before you trust the skip. A gate counts a skip as a failure: a
+suite whose service is down skips every test and reports green with nothing checked.
+
+**The breaking action must be in force before the reaction is measured.** `ALTER ROLE … NOLOGIN; SELECT
+pg_terminate_backend(…)` in one `psql -c` is one transaction: the pool reconnects before `NOLOGIN` commits, and the probe
+stays green. When the other side cannot be had (the old build lacks the mode), keep the same stand and change one
+variable — the topology, one key — so that the control sits where the defect must bite.
 
 **Checks that are green for the wrong reason:** an aggregate over zero rows; `bool_and` / `bool_or` skipping NULL (wrap in
 `coalesce(…, false)`); a text match on a jsonb string without `#>> '{}'` (the text starts with a quote); a row inserted by
@@ -24,7 +30,12 @@ arguments, remove the lock — and count the red tests. In SQL a mutant is built
 `pg_get_functiondef` + `regexp_replace` and rolled back. If a mutant dies only on another test's tag, your test does not
 pin it: make the rest of the input valid, so the mutant dies on its own tag. Run a mutant across the whole suite before
 you name who kills it. A shared component's guarantee is pinned by its own test, not by a consumer's. Argue an
-equivalent mutant instead of chasing it. For a sanitiser, fuzz against an oracle on the *shape* of the output, not on
+equivalent mutant instead of chasing it — and confirm it by series of the base and the mutant side by side. A mutant per
+case, not per code: a test that moves time by an argument while the code reads the real clock passes without the thing
+it tests. A run that could not test what it was built for (the stub did not start, the binary is missing, the event came
+late) exits with its own code, never as red — or it reads as a killed mutant. A mutant that stops going red after an
+unrelated change means the check stopped telling the cases apart. A comment on a constant that a "different constant"
+mutant does not turn red carries nothing. For a sanitiser, fuzz against an oracle on the *shape* of the output, not on
 "it did not crash".
 
 **A check that something did NOT happen needs proof that the branch ran** — a counter on the branch, a printed canary, the
@@ -34,6 +45,8 @@ setup a positive control too: the same run with correct input passes.
 - **"Nothing was created" needs proof that the event reached the branch.** With an asynchronous answer an empty table
   proves nothing: `http.fetch` returns at once, the far end's answer comes later via PGFetch — a callback and an event,
   not the REST response.
+- **Count the outcome in the base, not only the absence of a duplicate.** A poll that bypasses a claim may deliver once
+  and record `failed`; "nothing was sent twice" stays green on that mutant.
 - **After an exception, look after the next step.** A call that throws rolls back its own work; claim "no side effects"
   after the following step, not right after the refusal.
 
@@ -63,6 +76,15 @@ the allowed role passes the same request.
 - **Error texts are localized.** `RegisterError` keeps a message per locale and returns the session's
   (`platform/error/routine.sql:189`, `:143`); the wording of `PG_EXCEPTION_CONTEXT` follows `lc_messages`. Check the
   error code and the invariant part (the quoted key), never an English phrase.
+- **Two guards in series.** Before an action runs, the method right (`ExecuteMethod` → `CheckObjectMethodAccess` →
+  `ERR-400-003`; skipped for `apibot` outside `/api/v2`); inside it, the object write trigger (`ERR-400-001`) — and an
+  entity's own `api.*` or route may refuse with `-001` before both. Prove that
+  the attacker's request reaches the guard under test — the same request on the attacker's **own** object passes — then
+  mutate each guard alone and both: one mutant stays green while the other guard holds.
+- **A probe can break its own fixture.** An intruder's failure path may change the victim's state (on older pins a
+  WebSocket `OPEN` with a wrong secret closed the victim's session): after
+  each intruder, check that the fixture is alive, or "did not receive" is a false green. The control client follows the
+  product's real pattern, not a synthetic one that receives nothing on any build.
 - **Compare the state code, not the state type.** `IsEnabled` is true for every state of type `enabled`
   (`in_progress`, `failed`, …) — "enabled" is not "in work".
 
@@ -106,6 +128,11 @@ data in it — an empty base proves nothing. The two roads differ (`db-architect
 in a rolled-back transaction, a matrix actor × action × object. "0 differences" proves something only if the matrix has
 cells where the filter cuts rows; for an access boundary add a deliberately leaky variant that must show extra rows.
 
+**A test of "the base before the patch" built by `DROP COLUMN`** is green on a long-lived base and red on a fresh one:
+a `SELECT *` view created after the column keeps it. Run such a scene on both. After a rolled-back mass insert, `VACUUM`
+before `EXPLAIN ANALYZE` — dead index entries make an empty plan look slow. On a live stack the background roles work in
+bursts: a comparison of two windows by database counters flaps unless that noise is measured.
+
 **After narrowing a selection by access, re-measure on volume** — against an existing list of similar size, not against
 "as before". A fix that closed a hole on a small base made an admin list 300× slower on 40k rows.
 
@@ -127,13 +154,56 @@ nothing — age the field first. All state changes of one transaction share one 
 **A check→write race needs two sessions**: A holds the row until `COMMIT` while B calls. Use a no-lock mutant as the
 control; a test inside one transaction cannot show the race.
 
-**PL/pgSQL resolves names when a statement first runs**, not at `CREATE` — a call is proven by running it
-(`install-pitfalls.md` § R).
+**PL/pgSQL resolves names when a statement first runs**, not at `CREATE` — a call is proven by running it, under a
+session (`install-pitfalls.md` § R).
+
+**A race between two sessions needs real commits.** Session A opens a transaction, acts and sleeps; the runner waits
+for A's marker line in its output, then starts B and measures how long B waited — without "B was delayed" a green B
+proves nothing. Warm both connections first (the first call on a connection may write session data and queue its
+loads). Order the scene by a lock, not by `sleep` (a third session holding `LOCK <journal table> IN SHARE MODE` keeps the first
+transaction's insert waiting, so it stays uncommitted as long as needed), and judge it by the log, not by timing. A fix that serialises needs a scene where it must **not**
+wait — a known key, two different new keys. A changed lock order is checked against every counterpart, not only the one
+in the task.
+
+**The deadlock victim is chosen by the order of waiting**: the session whose `deadlock_timeout` fires first after the
+cycle closes. Let the side that must lose wait first (poll `pg_locks` for `NOT granted`; `pg_stat_activity` inside a
+transaction is a snapshot), then close the cycle within `deadlock_timeout` of that wait — closed later, the closing
+session is the victim (by PostgreSQL's rules, not measured here).
+
+**Under READ COMMITTED, `UPDATE … WHERE` and `INSERT … ON CONFLICT` treat another session's uncommitted insert
+differently**: the `UPDATE` skips it without waiting, `ON CONFLICT` waits for its commit — a "close the previous row"
+step drops out silently. A transaction-level advisory lock on the key, taken first, orders such pairs.
+
+**`pg_notify` is delivered at commit.** A test in a rolled-back transaction cannot see a delivery: commit, listen from a
+second connection, add a control (your own `pg_notify` on the channel arrives), and count exactly what was heard.
+`nextval` survives a rollback — it marks "first attempt only" inside a body that is rolled back.
+
+**Thresholds in time** are pinned from both sides of the margin and swept over non-round values (a round one lands on
+a back-off step) and over the phase of the event; write each decisive moment's margin into the test's header. A
+`VOLATILE` call inside a `WHERE` runs once per row.
 
 ### 6. Builds, environments and long runs
 
 **Build what you accept, from the pins** — not from a shared working tree: `git archive <sha>` of the tree plus
 `git archive <pin>` of each submodule. Untracked files (per-environment bundles) stay out — add them by hand.
+
+**Build from the index.** `git archive $(git write-tree)` exports exactly the staged tree, a staged submodule pin
+included; add `git archive <pin>` of each submodule into its path, and `cmp` one changed file with the pin to prove which
+framework was built.
+
+**Inject a failure where the code cannot swallow it.** `daemon.*` functions catch exceptions inside: `REVOKE EXECUTE … FROM
+PUBLIC` on the function the role's entry calls raises outside the block (a `kernel`-owned `SECURITY DEFINER` caller
+keeps its own `EXECUTE` on inner functions), and `LOCK` + `pg_terminate_backend` gives a lost connection. A
+`BEFORE … FOR EACH STATEMENT` trigger that raises fires even when no row qualifies. Make a function "absent" with
+`ALTER FUNCTION … RENAME` and rename it back in `finally`, not with `DROP`.
+
+**A mutant of code a job or a live binary runs is committed code.** A periodic job fires on every base with a running
+backend: run such mutants only on a throwaway base, on an explicit word of the person who runs them (a variable they
+set), never on a heuristic such as a row count, and never on a base another suite uses. A runner's usage line names a
+placeholder, not an address.
+
+**A fake peer reproduces the real failure shape.** A fake server that sends one error per batch cannot tell "the first
+result" from "the failed one"; take the shape of a failure (a completed command, then an error) from a real server.
 
 **When credentials are missing, build a stub instead of waiting.** A cookie-clearing branch that
 "needs a real token exchange" turned out to be reachable through a third code path that touches
@@ -144,12 +214,15 @@ mode; a "6% win" turned out to be warm-up handed to whichever mode went first.
 
 **Wait for the process, not the wrapper.** End a long background run with a line `rc=$?` in its output file and wait for
 that line (`until grep -q '^rc=' f`) — not for a wrapper's "done", not for `pgrep -f` with a pattern that matches your own
-command line. Capture `rc` into a variable at once: `echo "$(cmd) rc=$?"` reports the substitution's code.
+command line. Capture `rc` into a variable at once: `echo "$(cmd) rc=$?"` reports the substitution's code, and in `A=$(f) B=$(g)`
+`set -e` sees only the last status. `$!` after `setsid nohup … &` may be the wrapper's pid: find the process by its port and
+check `/proc/<pid>/cmdline` before you stop it.
 
 ### 7. Searching, and secrets
 
 **An empty search proves nothing until a control hits.** `git grep` does not enter submodules without
-`--recurse-submodules` — and `sql/platform` and the C++ modules are submodules; tools that honour ignore files skip what
+`--recurse-submodules` — and `sql/platform` and the C++ modules are submodules — nor nested repositories the parent
+ignores: search each with its own `git -C <repo> grep`; tools that honour ignore files skip what
 you need; an empty pattern (`grep -F "$v"` with `v=""`) matches everything; `wc -l` of an empty string is 1. Run each
 pattern on a synthetic positive first, and say which perimeter you searched (tracked files are not the untracked `.env`).
 Callers of a SQL function are listed from `pg_proc.prosrc` on a base installed at the pin — it holds what really loaded,
@@ -159,7 +232,9 @@ overrides included — and the tree is searched by explicit paths.
 values — a `PASSWORD|SECRET` filter misses a password inside a DSN. Classify hits by `file:line`, length and character
 class. A value passed in argv is visible in `/proc/<pid>/cmdline`. A search by key shape misses `password = login` and
 `process.env.X || '<default>'`: search by shape *and* by value, without printing the value. psql prints what `SELECT`
-returns, secrets included (`install-pitfalls.md` § F).
+returns, secrets included (`install-pitfalls.md` § F). Never try passwords from another environment's bundle to reach a
+base — ask for access the ordinary way. Mask a secret both when it is written and when it is read: rows written before
+the mask are read without it.
 
 ### 8. Documents, reports and reviews
 
@@ -169,10 +244,12 @@ been retracted. A document promising a guarantee that does not exist is worse th
 
 **A document with SQL (a runbook, a README, a task note) is code.** Check every field and function against
 `table.sql` / `view.sql` and run each query on a throwaway base — one audit found 28 of 66 runbook queries wrong. A console
-query needs a platform session (as `kernel`: `SessionIn(…)`); without one, views filtered by the session return nothing
-and raise nothing.
+query needs a platform session (as `kernel`: `SELECT GetSession(GetUser('<user>'));` opens and enters one, `SessionIn(<code>)`
+re-enters an existing one); without one, views filtered by the session return nothing and raise nothing. A count is
+written with the way it was printed (`psql -At` or not).
 
-**A subagent's report is a claim.** Recount its numbers from its own table; re-run its measurement on a broken input; check
+**A subagent's report is a claim.** Recount its numbers from its own table; re-run its key measurement on a broken input
+in a separate subagent that builds from the hashes (`git archive`), not from a working tree; check
 an audit's "wrong" against the code before you edit. Changes made after a review go to a second pass — a result the
 reviewer did not see is not reviewed. Brief a reviewer with "what else reaches the same state", not only "is the diff
 right".
@@ -192,7 +269,7 @@ boundary; "did not check" leaves a hole later mistaken for a check.
 ### 9. The meta-lesson
 
 **Written knowledge does not protect you from a trap.** An agent stepped into
-two traps he had personally documented an hour earlier. What worked was **a precondition check
+two traps it had itself documented an hour earlier. What worked was **a precondition check
 inside the tool** — "did the stub actually come up?", "is this the binary I just built?". Put the
 guard in the instrument, not in the reader.
 

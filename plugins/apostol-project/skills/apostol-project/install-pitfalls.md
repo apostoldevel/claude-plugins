@@ -19,6 +19,15 @@ when a statement **first executes**. A path nobody calls can carry a wrong call 
 the arguments **by value** (two swapped `uuid` arguments pass the type check). A broken copy used as a negative control
 must be broken *syntactically* and loaded inside `BEGIN … ROLLBACK`, or loading it replaces the very function under test.
 
+`LANGUAGE sql` is the other way round: its body is checked at `CREATE` (`check_function_bodies`). A SQL function in a
+file that `create.psql`, `update.psql` and patches all load must find every object it names in each of those contexts.
+
+The number of arguments is only the first lock of a call. Generic `CreateObject` / `CreateDocument` do not check that a
+type belongs to the entity, but entity creators do (`IncorrectClassType`, `ERR-400-012`), and an edit without a session
+fails in the object trigger — as `kernel` or `postgres` on `oper` being NULL, as any other role with `ERR-400-001` — masking the
+error you are looking for. Run the call whole, under a session: `SELECT GetSession(GetUser('<user>'));` opens one and
+enters it (`admin/routine.sql:7124`); `SessionIn(<code>)` only re-enters an existing session.
+
 ### S. The platform text is only half the picture
 
 Projects override `CheckObjectAccess` and `CheckObjectMethodAccess` in
@@ -325,3 +334,19 @@ Compose files pass it as `-c search_path=…`.
 
 A sign-in refused with "Login is not possible" can be an IP rule: check `db.iptable` for the user (`ERR-400-044`,
 `admin/table.sql:771`). Through `daemon` the reason becomes `access_denied`, and the cause stays in the event log.
+
+### Y. A value has several homes
+
+A default may live in the image (`ENV`), in compose (`${KEY:-default}`), in an env template, in the site's env file and
+in a mirror of the base images; compose overrides the image, and the interpolation `.env` / `--env-file` fills compose's `${…}` (an `env_file:` entry
+loses to `environment:`). Change a default in every
+home, search each repository separately (`git grep` does not enter nested repositories the parent ignores), and read the
+effective value from `docker compose config` with stub env files, in both directions: key absent → the new default; key
+set → it wins. A comment in compose is not a source of a value.
+
+### Z. A copied database loses its per-database settings
+
+`CREATE DATABASE … TEMPLATE x` copies the objects, not the `ALTER DATABASE … SET` settings and not the owner. The
+platform reads its key through the GUC `current.key` (`GetSecretKey`, `admin/routine.sql:2141`), which a deployment may
+set per database or per role: tokens and hashes made on the original do not verify on a copy without it. Set the
+settings again on the copy, and name the base a test ran on.

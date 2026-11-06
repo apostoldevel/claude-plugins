@@ -5,7 +5,7 @@
 
 ```
 db/sql/
-  platform/        ← Framework (28 modules at 1.2.31 — DO NOT EDIT)
+  platform/        ← Framework (29 modules at 1.2.38 — DO NOT EDIT)
   configuration/
     <dbname>/      ← Project business logic (EDIT HERE)
 ```
@@ -52,14 +52,14 @@ cd db/
 | `daemon` | Worker processes | HTTP request handling (AppServer, AuthServer, etc.) |
 | `apibot` | Helper / Custom processes | Background tasks (PGFetch, MessageServer, Replication, ...) |
 
-### Platform Module Groups (28 at 1.2.31)
+### Platform Module Groups (29 at 1.2.38; count them: `grep -c '^\\ir' platform/create.psql`)
 
 | Group | Modules |
 |-------|---------|
-| **Core** | `kernel` (types/JWT helpers), `oauth2`, `locale`, `admin` (users/auth/sessions/ACL), `exception`, `error` (the `ERR-GGG-CCC` catalog, 80 codes × 6 locales) |
-| **Infrastructure** | `http`, `resource`, `registry`, `log`, `api` (REST routing helpers), `replication`, `daemon`, `gateway` (the GatewayAPI schema, since 16.09.2026) |
+| **Core** | `kernel` (types/JWT helpers), `oauth2`, `locale`, `admin` (users/auth/sessions/ACL), `exception`, `error` (the `ERR-GGG-CCC` catalog, 89 codes × 6 locales at 1.2.38) |
+| **Infrastructure** | `http`, `resource`, `registry`, `log`, `api` (REST routing helpers), `replication`, `daemon`, `gateway` (the GatewayAPI schema, since 16.09.2026), `notify` (delivery policy per `pg_notify` channel, 1.2.37; `processes.md`) |
 | **Session context** | `session` (setters: SetSessionUser, SetSessionArea, ...), `current` (getters: current_userid, current_locale, current_area, current_scope, current_session, ...) |
-| **Business** | `workflow` (state machine: 23 tables), `entity` (object hierarchy: 27 tables), `file` (VFS + S3), `kladr` (tables empty in every known deployment), `mq` (store-and-forward between instances: 10 tables, 31 routes — **no C++ consumer and no caller anywhere yet**) |
+| **Business** | `workflow` (state machine: 23 tables), `entity` (object hierarchy: 27 tables), `file` (VFS + S3), `kladr` (tables empty in every known deployment), `mq` (store-and-forward between instances: 11 tables, 31 routes — **no C++ consumer and no caller anywhere yet**) |
 | **Communication** | `notice`, `comment`, `notification`, `verification` (codes), `observer` (pub/sub) |
 | **Reporting** | `report`, `reports` |
 
@@ -69,9 +69,9 @@ cd db/
 
 ```
 kernel → oauth2 → locale → admin → http → resource → exception → error
-  → registry → log → api → replication → daemon → session → current
+  → registry → log → api → notify → replication → daemon → session → current
   → workflow → kladr → file → entity → mq → notice → comment → notification
-  → verification → observer → report → reports
+  → verification → observer → report → reports → gateway
 ```
 
 Knowing this matters when you reference a platform function from your configuration: it's guaranteed loaded if the module appears before `entity` (or before whatever you depend on). Don't reorder — dependencies break.
@@ -93,13 +93,18 @@ Example: `configuration/crm/patch/v1.0/P00000078.sql`. Uncomment in `patch/patch
 **`migrate.sh`** is the automatic patch runner — preferred over manual `runme.sh --patch`. **Use the project's `db/migrate.sh`** (phase splitting, `db.patch_log`); the copy in `db/sql/platform/migrate.sh` is an older, shadowed variant still advertised by `platform/CLAUDE.md` — do not run it:
 
 ```bash
-./migrate.sh             # apply unapplied patches + update routines   (from <project>/db/)
+./migrate.sh             # apply unapplied patches; update routines only if one was applied   (from <project>/db/)
+./migrate.sh --force-update   # update routines even when no patch was applied
 ./migrate.sh --status    # show applied vs pending patches
 ./migrate.sh --dry-run   # preview without applying
 ./migrate.sh --baseline  # mark all patches as applied without executing
 ```
 
 Tracks state in `db.patch_log` table. The `PSQL` env var overrides the default `sudo -u postgres -H psql` connection (useful in CI/Docker).
+
+**`migrate.sh` runs `update.psql` only after it applied a patch** (or with `--force-update`). A release that changes
+routines and adds no patch leaves them old under a bare `./migrate.sh` — rehearse the rollout with the flags it really
+runs with (a deployment container usually passes `--force-update`).
 
 #### `runme.sh --patch` vs `migrate.sh` — they discover patches differently
 
@@ -132,11 +137,49 @@ right before push, against the remote's master. To repair a base that recorded t
 Each phase is a new connection: session settings made with `set_config(…, false)` and the platform session before a
 `\connect` are gone after it. A body that needs neither is simpler as one `kernel` phase.
 
+**In a multi-phase patch a phase whose file is missing counts as empty and is marked applied** (`phase N: skipped (empty)`): a tree the runner
+cannot write into — copied in as root, run as `postgres` — records patches with nothing executed and prints `OK`. Check
+write access before the run, and afterwards compare `db.patch_log` with the change itself in the schema.
+
 Single-phase patches (no `\connect`) are tracked as plain `<patch_name>`. If you change a multi-phase patch into single-phase later, you'll get an orphan `<patch_name>#0` row in `patch_log` — harmless, just noise. Clean up manually if it bothers you:
 
 ```sql
 DELETE FROM db.patch_log WHERE name LIKE 'config/<dbname>/P00000012#%';
 ```
+
+#### The previous binary (N−1)
+
+During a rollout the old binary runs against the new schema until it is replaced. A function it calls — the hot path of
+a worker, a helper, a process — keeps its old form callable: a patch that drops the old signature runs before
+`update.psql` creates the new one and leaves a window with no function at all. Drop the old form and create the new one
+in the same patch transaction, or keep the old form as a wrapper, and put new behaviour behind a switch that is off by
+default (a registry key, a channel mode) — turned on when every instance is new. Measure what the old binary sees: two
+bases on one server, one from the previous tag and one from the tag plus the new tree's `migrate.sh`, and a diff of
+their interface (signatures, OUT columns, constraints, triggers and their state, ACL, defaults); the old call form must
+neither vanish (`42883`) nor become ambiguous after an added overload (`42725`).
+
+#### What the patch path executes
+
+A patch that `\ir`-includes a module file (`init.sql`, `create.psql`, `routine.sql`) runs **today's** text of that file
+on the base the patch starts from: a line added to the file later must be valid on that base. Prove the patch path from
+the previous release tag, not from a base that already ran the newest patches. The catalog after the patch path —
+functions with their ACL, columns, constraints, triggers — must equal a fresh install once creation timestamps are left
+out of the comparison; a deliberately spoiled copy must show a difference.
+
+### Grants of a schema you create
+
+PostgreSQL grants `EXECUTE` on every new function to `PUBLIC`. In the platform only `notify` revokes it schema-wide
+(the closing `DO` loop of `notify/routine.sql`: `REVOKE ALL … FROM PUBLIC`, then `GRANT` of the interface); elsewhere only
+single functions are revoked (`api.job_due`, `api.job_claim`, …) and the rest rely on `USAGE`. A `SECURITY DEFINER` function in a schema of yours is therefore callable by every role
+with `USAGE` on that schema, and one that `EXECUTE`s a name or text it was given runs SQL as its owner. End such a
+schema's `routine.sql` with the same revoke-and-grant loop.
+
+A function a narrow role needs (a count over a platform table the role cannot read) has two doors: `USAGE` on the
+schema and `EXECUTE` on the function. A real role stops at the first, so the second is tested with a probe role that
+holds `USAGE`, and checked from the catalog (`aclexplode(proacl)` lists exactly the intended grantees). A mutant that
+changes only the ACL is invisible to `pg_get_functiondef`: fingerprint
+`md5(pg_get_functiondef(oid) || coalesce(proacl, acldefault('f', proowner))::text)`, and check
+`has_function_privilege(<role>, <function>, 'EXECUTE')` before and after a revoke.
 
 ### Triggers on platform tables; hooks that see only an id
 
@@ -145,7 +188,7 @@ DELETE FROM db.patch_log WHERE name LIKE 'config/<dbname>/P00000012#%';
   a hook copies the whole record and reverts edits made from the object's side. When you need OLD / NEW, write a
   configuration trigger on the platform table.
 - **Such a trigger goes in a patch**: `--update` does not run `table.sql`, so a trigger declared there never reaches an
-  existing base.
+  existing base — nor does a new table, column or index declared only there: it exists on fresh installs alone.
 - **`CREATE OR REPLACE TRIGGER`** (PostgreSQL 14+), not `DROP TRIGGER` + `CREATE TRIGGER`: `DROP TRIGGER` takes ACCESS
   EXCLUSIVE on the table — on `db.object` every read of the base queues behind it. Set `lock_timeout` in the patch.
 - **BEFORE triggers of one table fire in alphabetical order of their names** (PostgreSQL) — the name decides whether the
@@ -178,6 +221,10 @@ trajectory.
 > `update.psql` carries view, routine, api and rest — never `init.sql` (`workflow/update.psql`). A literal changed in a
 > seed (a price, a registry key, a flag) never reaches an existing base; an `IF … IS NULL` inside the seed guards only a
 > re-run of the seed. For a live base: a data patch, or the API that changes the value.
+> **Seeds.** A row the platform seeds with `ON CONFLICT DO NOTHING` (a channel, a setting) ignores a second `INSERT`.
+> Change it with `UPDATE … WHERE <key> AND <the seeded value>` in the configuration's `init.sql` — fresh installs, and
+> the patches that include it — plus a data patch that includes the same file. Prove that the patch touches nothing else:
+> fingerprint the other rows **and** the other columns of the changed row (`to_jsonb(r) - '<column>'`).
 
 > **`CREATE OR REPLACE VIEW` cannot change the column list** — it only appends at the end. So a
 > view whose columns you reordered or dropped installs cleanly from scratch and **fails on

@@ -52,6 +52,11 @@ IF GetObjectStateCode(uObj) <> 'available' THEN PERFORM DoAction(uObj, 'availabl
 - **All state changes of one transaction share one `Now()`**, and `AddObjectState` overwrites the earlier history row
   (`entity/object/routine.sql:495–510`). A unique index over a `DEFAULT Now()` column refuses two rows with one key in one
   transaction. A test that needs distinct history steps runs them as separate committed transactions.
+- **`AddObjectState` closes the open history row at the writer's `Now()`** — its transaction start, not its commit
+  (`entity/object/routine.sql:495–543`, 1.2.38). After the commit a reader whose own `Now()` is earlier still finds the
+  old row valid while `db.object.state` already shows the new state; a reader whose `Now()` falls between the writer's
+  start and commit finds the new row valid retroactively. A claim predicate on "the history row valid at `Now()`" races
+  with the writer: test it with two connections.
 - **`DeleteMethod` removes the method's transitions and AMU too** — through the BEFORE DELETE trigger
   `t_method_before_delete` (`workflow/table.sql:518–535`), not in its own body. `db.method_text`, `db.amu`, `db.oma` and
   `db.notification` go by `ON DELETE CASCADE` (`workflow/table.sql:432`, `:542`; `entity/object/table.sql:393`;

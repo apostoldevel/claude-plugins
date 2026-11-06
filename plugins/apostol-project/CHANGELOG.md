@@ -3,6 +3,38 @@
 Versions follow [semver](https://semver.org); the current one is in `.claude-plugin/plugin.json`. Dates are the
 author's working days.
 
+## 1.4.0 — 2026-11-06
+
+From the agents' ratings after 1.3.0 (about 80 entries; what holds on every project, checked against db-platform `75152fe` (after the
+1.2.38 bump), libapostol `82e7485`, the shared C++ modules and go-platform `fcf5247` at their public heads).
+
+- **Counts and versions:** 29 modules (`notify` in 1.2.37), 42 dispatchers, ~456 routes at 1.2.38; the load order with
+  `notify` and `gateway`; the access set is materialised since 1.2.17 and semi-joined since 1.2.34 (was "1.2.20"); a
+  feature ships in the first `VERSION` bump after its commit.
+- **The `notify` module:** channel modes, which consumers subscribe, an older binary hears nothing on a `single` channel,
+  who writes `seen`, a sweep job for a channel without a subscriber, what `max_attempts` counts; the channel table gains
+  `job`, the capabilities table loses the stale `POST /ws/<code>` push.
+- **Process lifecycle (libapostol):** custom processes only under a master; the master respawns every child without
+  end, so a worker validates nothing it would refuse; the `.leader` key by process name; the stop order with
+  `stopped()`, the SIGKILL deadline and the container's stop deadline; workers are processes; config booleans; the libpq
+  environment on every connection; `exec_sql` answers errors itself; `PgPool::cancel` blocks below libpq 17; a project's
+  `configure` may reset submodules.
+- **DB:** the previous binary during a rollout (N−1); what the patch path executes; `migrate.sh` updates routines only
+  after a patch and marks a phase without a file as applied; grants of a schema you create (`EXECUTE` to `PUBLIC`, two
+  doors, ACL-only mutants); seeds changed by `UPDATE` plus a data patch; a new table only in `table.sql` reaches no
+  existing base; `LANGUAGE sql` is checked at `CREATE`; generic creators check no type, entity creators do.
+- **Access and workflow:** recovery ticket types and the write-once answer; the `kernel`-passes administrative guard and
+  a harness's administrator session; a foreign object answers as a missing one; the WebSocket road; `EnterSystemContext`
+  admits whom and what each call costs; `AddObjectState` closes the row at the writer's `Now()`; a service session is
+  refused on `/api/v2` by design; OpenAPI for `/api/v1` and `/api/v2`.
+- **Verification:** a gate counts skips as failures; the breaking action in force first; a mutant per case; "could not
+  test" is not red; two guards in series; a probe that breaks its own fixture; races with real commits, deadlock
+  victims, `UPDATE` versus `ON CONFLICT`, delivery at commit, thresholds in time; failure injection that the code cannot
+  swallow; mutants of job-run code only on a throwaway base; fake peers with the real failure shape; build from the
+  index; nested repositories in searches; a value with several homes; a copied database loses its settings.
+- `citecheck.py` proves a citation resolves, not that the sentence is true; a revision of this skill is checked by an
+  independent read-only reviewer before it is published.
+
 ## 1.3.0 — 2026-10-24
 
 From the agents' ratings after 1.1.0 (14 entries; what holds on every project, checked against db-platform 1.2.35).

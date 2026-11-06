@@ -28,7 +28,9 @@ per project. Every requirement cites its source line at a pinned commit; every k
 It is about 2 MB: **read it by the code you touch, never whole.** Before changing behaviour run
 `python3 docs/spec/tools/where.py <file>[:<line>]` (or a function or route name) and read the block it names with its
 deviations; a fix of a deviation names its id. `drift.py` lists the blocks a newer commit may have made stale. The code
-stays the evidence: where `where.py` says the file changed after its pin, the code wins. Where to start by role: SQL —
+stays the evidence: where `where.py` says the file changed after its pin, the code wins. `citecheck.py` proves that a
+citation resolves at its pin, not that the sentence is true: after a re-pin, reread every cited range a diff hunk
+overlaps. Where to start by role: SQL —
 Part II and your project's Part; C++ modules — Part I module blocks, clause 05 (transport ↔ database), Annex B (keys);
 bare transport — Part I `libapostol` blocks; front-end — Part II clause 09 with Annex A (routes and their gates), Part
 III clause 07, Part I `AUS`; Go — Part III, Part II `GTW` and `DMN`; QA and audit — the deviation tables and the `90`
@@ -38,11 +40,11 @@ clauses; devops — Part I Annex B and `drift.py` in a release; coordinator — 
 |---|---|---|---|
 | **SQL / configuration** (`configuration/<dbname>/`) | Step 14 | `reading.md` Tiers 0–1 · `db-architecture.md` · `entity.md` · `workflow.md` · `access-control.md` · `anti-patterns.md` · `facts-2026-09.md` · before commit `conventions.md` · fresh base `install-pitfalls.md` | `frontend.md`; `processes.md` unless you touch `http` / PGFetch / jobs |
 | **C++ modules of the CRM stack** (AppServer, PGFetch, own Workers / processes) | Step 14 | `processes.md` · `reading.md` Tier 2 · `anti-patterns.md` (Process) | entity, workflow, front-end, conventions |
-| **C++ transport without db-platform** (own processes on bare libapostol, e.g. an OCPP Central System) | — | libapostol wiki `Architecture.md`, `Configuration.md` (`reading.md` Tier 2); `processes.md` only for PgPool and the `module.<Name>.enable` key — its modules are the CRM stack's, not a bare `CustomProcess` | Steps 6–10, 13 |
+| **C++ transport without db-platform** (own processes on bare libapostol, e.g. an OCPP Central System) | — | libapostol wiki `Architecture.md`, `Configuration.md` (`reading.md` Tier 2); `processes.md` for PgPool, the `module.<Name>.enable` / `.leader` keys, the stop order and the master's respawn — its modules are the CRM stack's, not a bare `CustomProcess` | Steps 6–10, 13 |
 | **Front-end** | — | `frontend.md` · `access-control.md` (what the barrier does to your data) · `anti-patterns.md` (Frontend) | Steps 6–8, 11–13 |
-| **Go / `/api/v2` behind GatewayAPI** (where a project has one) | — | `frontend.md` (tokens, cookies) · `access-control.md` — access is decided in `api.*` **and** in the `rest.*` route; `/api/v2` reaches `api.*` directly and skips every refusal the route makes: list them before you open an `api.*` function to a new road (§ Every door to an object, § `/api/v2` identity) · `facts-2026-09.md` | entity, workflow, conventions |
+| **Go / `/api/v2` behind GatewayAPI** (where a project has one) | — | `frontend.md` (tokens, cookies) · `access-control.md` — access is decided in `api.*` **and** in the `rest.*` route; `/api/v2` reaches `api.*` directly and skips every refusal the route makes: list them before you open an `api.*` function to a new road (§ Every door to an object, § `/api/v2` identity); a service (`client_credentials`) session is refused by `GuardSession` / `GuardAdministrator` by design · `facts-2026-09.md` | entity, workflow, conventions |
 | **QA / cross-layer acceptance** | — | `processes.md` (PGFetch, PgPool, background paths) · `access-control.md` (ACL bits, for mutation checks) · `install-pitfalls.md` · `facts-2026-09.md` | entity, workflow, conventions |
-| **devops / release** | — | `install-pitfalls.md` (install, `--init`, export by pins) · `processes.md` (which key starts what) | Steps 6–10, 13 |
+| **devops / release** | — | `install-pitfalls.md` (install, `--init`, export by pins) · `processes.md` (which key starts what, stop deadlines, the `notify` channel modes) | Steps 6–10, 13 |
 | **Audit / review** | Step 14 | `anti-patterns.md` · `access-control.md` · `facts-2026-09.md`; a code review → `/apostol-review`. Reading or describing the frameworks without changing them needs no `/apostol`: this skill and their code at the pins | — |
 | **Coordinator** | Steps 2, 14 | `reading.md` (what goes into a brief) | the implementation references |
 
@@ -57,7 +59,8 @@ its lines override older text; a project's specification, measured at a later pi
 
 **After a task, rate the skill**: what got in the way, what is wrong or stale (`file:line` of the truth), what is
 superfluous, what you worked out yourself — in your project's feedback file if it keeps one, or as an issue on
-`github.com/apostoldevel/claude-plugins`. Whoever edits this skill keeps here
+`github.com/apostoldevel/claude-plugins`. A new revision is checked against the code at the pins by an independent
+read-only reviewer before it is published. Whoever edits this skill keeps here
 only what holds on **every** project: one project's rule goes to that project's `CLAUDE.md` or wiki, framework
 development goes to `/apostol`.
 
@@ -96,7 +99,7 @@ Apostol is a three-layer construction kit. The same stack runs seven (and counti
 | Level | What | You |
 |---|---|---|
 | **3 — Configuration** | YOUR project — the unique business logic; everything that distinguishes one project from another | **write here** |
-| **2 — Platform** (db-platform) | shared by everyone, 100 % reuse: auth · OAuth 2.0 · workflow · entity · files (S3) · pub/sub · audit log · notifications · localization · reports · registry · KLADR · … — 28 modules, 41 `rest.*` dispatchers, ~450 routes (1.2.31) | read only — not one line by configuration projects |
+| **2 — Platform** (db-platform) | shared by everyone, 100 % reuse: auth · OAuth 2.0 · workflow · entity · files (S3) · pub/sub · audit log · notifications · localization · reports · registry · KLADR · … — 29 modules, 42 `rest.*` dispatchers, ~456 routes (1.2.38) | read only — not one line by configuration projects |
 | **1 — Transport** (libapostol; libdelphi on v1) | C++ server: HTTP / WebSocket / TLS / epoll, libpq async, one epoll loop — like nginx or PostgreSQL itself, not part of your project | read only |
 
 Level 3 **extends** level 2 and never modifies it.
@@ -104,7 +107,7 @@ Level 3 **extends** level 2 and never modifies it.
 **The contract:**
 - Configuration projects **extend** the platform via `AddEntity()`/`AddClass()`/`AddDefaultMethods()`/`AddEvent()`/`RegisterRoute()`. They **never** modify platform code.
 - The platform is consumed via well-defined APIs: `db.*` tables, `kernel.*` functions, `api.*` views/wrappers, `daemon.*` interface.
-- 28 platform modules (1.2.31; `gateway` joined 16.09.2026) give a **complete** production backend out of the box: REST API, auth, RBAC, files+S3, pub/sub, notifications, reports, localization, audit. **Nothing is missing** for a typical CRM-style project.
+- 29 platform modules (1.2.38; `gateway` joined 16.09.2026, `notify` in 1.2.37) give a **complete** production backend out of the box: REST API, auth, RBAC, files+S3, pub/sub, notifications, reports, localization, audit. **Nothing is missing** for a typical CRM-style project.
 - A module written for one project (e.g. a payment provider) drops into another without modification — the only file that ever changes per-project is `configuration/<dbname>/`.
 
 **In practice a configuration does override platform functions** — by `CREATE OR REPLACE` later in the load order
@@ -115,8 +118,9 @@ the load order decides which copy wins.
 
 **Which platform you stand on:** `cat <sql>/platform/VERSION` — the only reliable version string (the repository
 carries a single tag, `v1.0.0`, so `git describe` says nothing). Pins across the ecosystem run from 1.1.4a to 1.2.31
-(30.09.2026; the newest seen on 23.10.2026 is 1.2.35); counts and function claims in this skill are measured on the
-version named next to them.
+(30.09.2026; the newest seen on 06.11.2026 is 1.2.38); counts and function claims in this skill are measured on the
+version named next to them. A version a feature "shipped in" is the first commit at or after it that changes
+`VERSION`; name a later commit by its hash.
 
 **Implication for the agent:** if you find yourself writing code that re-implements something the platform already provides — **stop and read the platform docs first**. The platform is far richer than it looks at first glance.
 
@@ -129,7 +133,7 @@ Confusion here causes bad work. Get this straight before writing anything.
 |------|---------------------|
 | **Apostol** | The whole ecosystem (framework + platform + projects). Casual umbrella name. |
 | **libapostol** (a.k.a. **A-POST-OL**) | The Level-1 C++20 framework: HTTP/WebSocket/TLS/epoll/libpq async. One repo: `github.com/apostoldevel/libapostol`. |
-| **db-platform** | The Level-2 PostgreSQL framework: 28 PL/pgSQL modules at 1.2.31 (`mq` added in 1.2.17, `gateway` on 16.09.2026), 41 `rest.*` dispatchers with ~450 routes, ~52-page wiki (**the GitHub wiki `github.com/apostoldevel/db-platform/wiki` only** — last changed 23.08.2026, so it lags the code; a project's `sql/platform/` ships no `wiki/`). One repo: `github.com/apostoldevel/db-platform`. |
+| **db-platform** | The Level-2 PostgreSQL framework: 29 PL/pgSQL modules at 1.2.38 (`mq` added in 1.2.17, `gateway` on 16.09.2026, `notify` in 1.2.37), 42 `rest.*` dispatchers with ~456 routes, ~52-page wiki (**the GitHub wiki `github.com/apostoldevel/db-platform/wiki` only** — last changed 23.08.2026, so it lags the code; a project's `sql/platform/` ships no `wiki/`). One repo: `github.com/apostoldevel/db-platform`. |
 | **Apostol v2** | The current major version of the framework (C++20, JSON config, libapostol). v1 is C++14, INI config, on libdelphi — legacy, **but still in production** on several projects (30.09.2026). The C++ parts of this skill describe v2. |
 | **Apostol CRM** | A **template project** that puts libapostol + db-platform together with a minimal scaffold. NOT itself a product. New projects copy this scaffold. |
 | **A project** (any product on the stack) | Built on the platform. Each has its own `configuration/<dbname>/` directory and adds project-specific C++ modules/processes. |
@@ -146,15 +150,18 @@ Most rework here comes from **solving a problem the platform already solves**, o
 
 1. **Never edit shared code** — `sql/platform/`, `src/lib/libapostol/` (`src/lib/delphi/` on v1), upstream module
    sources, any local mirror of upstream (e.g. `apostol-repo-v2/`, `db/platform/`). A fix there is framework work — `/apostol`.
+   Mirrors lag `origin`: read the project's submodule at its pin. Upstream repositories are public — no project task
+   numbers or project details in their code comments and commit messages.
 2. **Never invent** routes, fields or types — read the entity's `rest.sql`, `view.sql`, `table.sql`. Query parameters
    are the platform's JSON `search` / `filter` / `orderby`, not `?status=active`. Before adding an endpoint, try the
-   41 dispatchers / ~450 routes that exist: `/list` + filters, or an `observer` hook.
+   42 dispatchers / ~456 routes that exist: `/list` + filters, or an `observer` hook.
 3. **Every `Object<Entity>` has its `Access<Entity>`**, and `list_` / `count_` go through
    `api.sql('kernel', 'Object<Entity>', …)`. A missing pair, or schema `api`, raises no error — access control silently
    disappears (the 2026-09 inventory found four of seven projects on schema `api`: `grep -rn "api.sql('api'" sql/configuration/`).
 4. **Changing a function's parameters or OUT columns creates an overload.** The old form is dropped **in a patch**, never
    in the re-run files (`routine.sql`, `api.sql`, `view.sql`); details in `anti-patterns.md`. A trigger on an existing
-   table goes in a patch too — `--update` never runs `table.sql` (`db-architecture.md`).
+   table goes in a patch too — `--update` never runs `table.sql` (`db-architecture.md`). A form a running binary still
+   calls stays callable through the rollout (`db-architecture.md` § The previous binary).
 5. **Crypto, password checks and cron do not go into PL/pgSQL** — a C++ process, OAuth2 / AuthServer, the platform
    `scheduler` + `job`.
 6. **A custom action needs a `'ChangeObjectState();'` event**; event order is parent first, except delete / drop — entity first.
@@ -163,7 +170,8 @@ Most rework here comes from **solving a problem the platform already solves**, o
 8. **Tokens are cookie-only** — no `localStorage`, no refresh logic in JS behind AppServer / GatewayAPI; guest routes are
    called anonymously, never with `client_credentials` from the browser.
 9. **A slow `list` / `count`** — suspect the known planner shape (`anti-patterns.md`, the callout) before a bespoke fix;
-   upstream materialises the access set since 1.2.20, a lower pin has no fix.
+   upstream materialises the access set since 1.2.17 and joins it as a semi-join since 1.2.34; a lower pin has no fix
+   (`grep -c 'AS MATERIALIZED' sql/platform/api/api.sql`; the semi-join: `grep -c 'IN (SELECT object FROM aou)'`).
 10. **Keep `INDEX.md` in sync** after adding an entity (`/index`, stale-scan mode).
 
 ---
@@ -329,6 +337,7 @@ When solving a problem or implementing a feature, ask in this order:
    - Reports → ReportServer + `report` module
    - Audit log → `WriteToEventLog(...)` + `db.log`
    - Pub/sub → observer + 7 publishers + LISTEN/NOTIFY
+   - Delivery to one consumer at a time (at least once), with a lease and repeats → the `notify` module (1.2.37+, `processes.md`)
 
 2. **Am I editing the right layer?**
    - Business logic → `configuration/<dbname>/` (this project)
@@ -359,10 +368,12 @@ When solving a problem or implementing a feature, ask in this order:
 them. The digest, one line each:
 
 1. **Both directions.** A check must pass, and must **fail** on a deliberately broken input; a skipped test proves nothing
-   until you have seen it bite.
+   until you have seen it bite, and a gate counts a skip as a failure. The breaking action is in force before the reaction
+   is measured.
 2. **Green for the wrong reason:** zero rows, `bool_and` over NULL, a jsonb string compared as text, a row the statement's
    snapshot cannot see.
-3. **Mutate the guard, count the reds.** A mutant that dies only on another test's tag is not pinned by yours.
+3. **Mutate the guard, count the reds.** A mutant that dies only on another test's tag is not pinned by yours; a mutant
+   per case, not per code; a run that could not test exits as such, never as red.
 4. **"It did NOT happen" needs proof the branch ran** — a counter, a canary, the allowed role passing. An answer through
    `http.fetch` comes later, via PGFetch, not in the REST response.
 5. **The refusal's identifier, then the guard.** `ERR-400-001/-002/-003` is one family raised by many guards: name the
@@ -374,9 +385,12 @@ them. The digest, one line each:
 8. **Gate on a throwaway fresh install**; a patch on a copy of the previous release with data; before/after by two pins;
    re-measure on volume after narrowing by access.
 9. **Probe inside `BEGIN … ROLLBACK`** and count side effects on your own rows only.
-10. **A `STABLE` function sees its caller's snapshot**; `now()` is constant within a transaction; a race needs two sessions;
-    PL/pgSQL resolves names at first run — prove a call by running it.
-11. **Build from the pins**; stub missing credentials; alternate the order in A/B; wait for `rc=`, not for a wrapper.
+10. **A `STABLE` function sees its caller's snapshot**; `now()` is constant within a transaction; a race needs two sessions
+    with real commits, ordered by a lock, not by `sleep`; `pg_notify` is delivered at commit; PL/pgSQL resolves names at
+    first run — prove a call by running it, under a session.
+11. **Build from the pins**; stub missing credentials; alternate the order in A/B; wait for `rc=`, not for a wrapper. A
+    mutant of code a job or a live binary runs is committed code — only on a throwaway base, on an explicit word; a fake
+    peer reproduces the real failure shape.
 12. **An empty search proves nothing until a control hits; never print a secret to find it.**
 13. **Comments, runbooks and subagent reports are claims** — check against the code, re-run; "could not reproduce" is
     part of a finding.
@@ -412,7 +426,7 @@ Don't claim "done" without running these. SQL layer — the `psql` / `curl` chec
 
 The ten rules of **Must-know** above, plus:
 
-1. **Three layers:** libapostol (C++; libdelphi on v1) → db-platform (PostgreSQL, 28 modules at 1.2.31) → configuration (your project). You write only in the top layer.
+1. **Three layers:** libapostol (C++; libdelphi on v1) → db-platform (PostgreSQL, 29 modules at 1.2.38) → configuration (your project). You write only in the top layer.
 2. **Read first, write second.** Wiki + INDEX.md + entity sources before code. Skipping reading = anti-patterns = rework.
 3. **`WriteToEventLog` 6-arg `(pType, pCode, pScope, pEvent, pText, pObject)`** is the canonical form. Wrappers exist (4-arg, 5-arg) but production code always uses 6-arg with explicit scope.
 4. **`gen_kernel_uuid()` for primary keys**, never `gen_random_uuid()` directly.

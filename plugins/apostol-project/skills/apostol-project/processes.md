@@ -20,7 +20,7 @@ Every C++ module is **paired** with db-platform PL/pgSQL modules. This is the co
 | **PGFetch** | Helper | http | `"http"` | `http.fetch()` → outbound HTTP via curl |
 | **PGFile** | Helper | file | `"file"` | filesystem sync from `db.file` |
 | **MessageServer** | Process | notice / message | `"outbox"` | SMTP/FCM/push dispatch |
-| **TaskScheduler** | Process | scheduler / api.job | poll | scheduled SQL execution (cron) |
+| **TaskScheduler** | Process | scheduler / api.job | poll; `"job"` in `single` mode (1.2.38) | scheduled SQL execution (cron) |
 | **ReportServer** | Process | report | `"report"` | builds `report_ready` documents; the result is JSON/text in `db.file` — **no CSV/XLSX/PDF export exists in the platform** |
 | **StreamServer** | Process | — | — | UDP listener (telemetry) |
 | **Replication** | Process | replication | `"replication_cmd"` | shore↔edge sync (HTTP+gzip+OAuth2) |
@@ -35,7 +35,7 @@ Every C++ module is **paired** with db-platform PL/pgSQL modules. This is the co
 | Cookie auth | AppServer | `__Secure-AT/RT` cookies, auto-refresh via `daemon.refresh_token()` |
 | WebSocket | WebSocketAPI | `wss://host/session/<code>[/<identity>]` |
 | Subscribe events | WebSocketAPI | JSON-RPC `CALL` → `api.observer_subscribe()` |
-| Push to client | WebSocketAPI | `POST /ws/<code>` with any body |
+| Push to client | WebSocketAPI + observer | an observer event, handed by each worker to `daemon.observer` for every verified socket (`POST /ws/<code>` is gone from current WebSocketAPI; an older pin may still serve it) |
 | Serve files | FileServer | `GET /file/<path>` → `api.get_file()` |
 | Static SPA | WebServer | per `conf/sites/*.json` |
 | Send email/push | MessageServer | `SendMessage` / `SendMail` / `SendFCM` / `SendPush` (kernel) → `message.outbox` document → `submit` → LISTEN `outbox` (+ 60 s poll). `SendSMS` **bypasses** the message model and calls `http.fetch` directly |
@@ -59,10 +59,37 @@ Every C++ module is **paired** with db-platform PL/pgSQL modules. This is the co
 | `report` | ReportServer | report enters `progress` state |
 | `notice` | (observer) | `db.notice` row created |
 | `log` | (observer) | `db.log` row created |
-| `notify` | (observer) | object state transitions |
+| `notify` | (observer) | a `db.notification` row after every executed method — the observer's channel, not the `notify` module |
+| `job` | — (`single`: the subscriber is woken on its personal `job:<n>`) | `api.job_due()` queues a due job (1.2.38); in `legacy` mode TaskScheduler polls `api.job` |
 | `replication` | (observer) | replication entry created |
 | `replication_cmd` | Replication | operator command (mode/channel/sync) |
 | (any project-defined) | WebSocketAPI dynamic | `pg_notify(channel, payload)` for project pub/sub |
+
+Since 1.2.37 the producers send through `notify.send`, and every channel has a row in `notify.channel` (the seed,
+`notify/init.sql`, lists the rest: `message`, `geo`, `gateway`, `mq`, …). A channel in `single` mode is not a
+LISTEN/NOTIFY channel any more — next section.
+
+### The `notify` module — delivery to one consumer (1.2.37+)
+
+- **Modes per channel** (`notify.channel.mode`): `legacy` and `broadcast` send a plain `pg_notify(channel)`; `single`
+  writes a `notify.queue` row and wakes one subscriber on its personal channel `<channel>:<n>` — the common channel is
+  never notified (`notify/routine.sql`, `notify.send`). Every seeded channel starts `legacy` (`ON CONFLICT DO NOTHING`).
+- **Consumers decide by the mode.** At their current heads PGFetch (`http`), PGFile (`file`), MessageServer (`outbox`),
+  ReportServer (`report`) and TaskScheduler (`job`) read `notify.channel_policy` and subscribe through `NotifySubscriber`
+  only when the channel is `single` and the base has the functions they probe for (`http.retake`,
+  `http.try_create_response`, `notify.hold` — after the 1.2.38 bump, `75152fe`); otherwise they keep the old path.
+  TaskScheduler bounds a job body by `statement_timeout` = 8/10 of the `job` channel's lease in every mode.
+- **An older binary hears nothing on a `single` channel.** Switch a channel to `single` only when every instance that
+  listens on it runs a consumer that subscribes — the database does not refuse the switch while old listeners remain.
+- **Who writes `notify.queue.seen`:** `notify.take` and `notify.sweep_channel` — the latter runs from a subscriber's
+  `notify.sweep` and from `api.sweep_notify_channel` in a job. Grace and expiry count from the first `seen`, so a row
+  nobody looks at never starts to expire. A channel with no subscriber needs a periodic job whose program is
+  `SELECT api.sweep_notify_channel('<channel>');` — the platform seeds none. Read who writes a column before you reason
+  about when something fires.
+- **`max_attempts` counts repeats** after the first delivery (N + 1 deliveries in all). `notify.close` calls `on_abandon` for
+  a row that was handed out, or for any row when the channel's `on_expire` is set; repeats also need `resend_enabled`.
+  Its exceptions are stored in `notify.queue.error`, not raised.
+- Changing a seeded channel row on an existing base: `db-architecture.md` § Tenant ↔ Area, the note **Seeds**.
 
 ### Background Service Auth Pattern
 
@@ -95,7 +122,7 @@ All helpers and custom processes authenticate to PostgreSQL via the helper pool 
 
 | Role | Config | Purpose |
 |------|--------|---------|
-| `single` (default) | `process.master=false` | Everything in one process |
+| `single` (default) | `process.master=false` | Worker modules in one process — no helper modules, no custom processes |
 | `master` | `process.master=true` | Supervisor (forks, signals, crash recovery) |
 | `worker` (N) | `workers: N` | HTTP/WebSocket — registered modules |
 | `helper` (1) | `process.helper=true` | PGFetch/PGFile background |
@@ -165,6 +192,13 @@ After binding ports, the process drops to `<app-user>`. Mandatory for production
   object is the caller's (a queue by key). A query lost with its connection after it was sent whole is **not** resent
   by default since libapostol `f697776` (`PgRetry::never`, `include/apostol/pg.hpp:100–116`); `PgRetry::if_lost`
   resends — the old behaviour — and is chosen at the call site where a repeat is harmless.
+- **`PgPool::cancel()`** runs on its own loop-driven connection only with libpq ≥ 17 (`LIBPQ_HAS_ASYNC_CANCEL` from
+  `libpq-fe.h`); with an older libpq it is a blocking `PQcancel` on the event loop (`include/apostol/pg.hpp:215–228`,
+  libapostol `82e7485`). Until the cancel is done, the connection takes no other query.
+- **`exec_sql()` answers errors itself** (`src/pg/pg_exec.cpp:12–36`): an SQL error, a lost connection or a query
+  stranded at stop go to its `on_exception`, which sends HTTP 500 `{"error":{…}}` — a `!ok()` branch in the result
+  handler is dead. A module whose answers must keep their own form does not use it. JSON error rows the platform returns
+  from its own catch blocks are still `ok()`, so a check on them stays live.
 - **`PgPool::execute()` can throw** — opening a connection or re-arming epoll fails — and then no callback follows
   (libapostol `src/pg/pg.cpp:1275–1284`). State set before the call and cleared only in the callback (a flag, a map
   entry, a slot count) then hangs forever. Catch **around the call**, not around the whole function, and release the
@@ -186,6 +220,47 @@ After binding ports, the process drops to `<app-user>`. Mandatory for production
   publisher's load, not as a one-off call; hoist session lookups such as `current_locale()` out of per-row joins.
 - **Background roles may have their own path to the base.** Helper and custom-process pools can connect to PostgreSQL
   directly while workers go through pgbouncer — a project setting (e.g. `postgres.helper.host` pointing past pgbouncer); attribute a query in the postgres log to its process by `%r`.
+  `max_connections` then covers the pooler's server limit, every direct connection and `superuser_reserved_connections`:
+  raising one limit without the others moves the refusal elsewhere.
+- **Watching a background role from SQL.** A role without `pg_read_all_stats` sees other roles' sessions in
+  `pg_stat_activity` as `<insufficient privilege>`, and the platform grants no `pg_*` role — a watcher running as
+  `kernel` is blind to `apibot`. Judge a consumer alive by whether it takes work (a request taken, a row answered).
+
+### Process lifecycle (libapostol `82e7485`, `src/core/application.cpp`)
+
+- **Custom processes run only under a master.** With `process.master: false` no custom process runs; with
+  `process.helper: true` the process is a helper (it may lead, and warns that it has no master), otherwise it runs worker
+  modules only (`:304–391`, `:1207–1293`, `:1442`, `:1660`).
+- **The master respawns every child that exits**, whatever its exit code, with a back-off that grows to 30 s and never
+  stops (`:1774`, `:1849–1873`). A refusal inside a worker — a throw from a module constructor or `on_start` —
+  becomes a respawn loop, not a stopped service: validate configuration in the master, and in a worker only log.
+- **Leadership of background roles.** The key is `module.<process name>.leader` — the custom process's own name
+  (`task-scheduler`, `message-server`, `report-server`), defaulting to `process.leader` (false). `module.<ClassName>.leader`
+  is accepted at load and does nothing, while `enable` is read under the class name (`module.TaskScheduler.enable`).
+  The helper follows `process.leader` only; workers never lead (helper `:1442`, custom process `:1588`, `:1637–1683`). The lock is a session advisory
+  lock on a dedicated connection opened with the helper's conninfo. A lost lock is logged, the process stops normally
+  with exit code 1, and the master respawns it as a standby: enabling a leader on a single instance adds that stop path.
+- **Stop order of a worker:** HTTP server stopped → `on_stopping()` (heartbeat off; `ModuleManager::stopped()` is true
+  from here) → LISTEN muted → finishing work (queries, HTTP answers, `busy()`; budget `process.stop_timeout` − 3.5 s, at
+  least 1.5 s) → `quiesce()` → `detach_db` → `on_stop()` → `drain_db` (only queries sent from some `on_stop`, at most
+  1.5 s) → `stop_db`. A module that decides "stopping has begun" looks at `stopped()`, not at `quiesce()`.
+- **Stop deadlines.** The master sends SIGKILL `process.stop_timeout` seconds (default 5) after its own SIGTERM; a
+  graceful SIGQUIT arms no timer. A container's stop deadline (`stop_grace_period`) must exceed `process.stop_timeout`,
+  or the runtime kills the process first and the log shows no cut-short stop.
+- **Workers are processes.** Module state in memory — a registry of sockets, a cache — belongs to one worker: with
+  N > 1 each worker sees only its own, and the cluster's truth is in the database. All workers share one listening socket
+  inherited from the master; with edge-triggered epoll and several workers, a worker holding more live connections than
+  the least loaded one defers its accept (`82e7485`). Distribution is not round robin: measure it over several rounds.
+- **Booleans in the config.** `Config::get_bool` takes the strings `true|false|1|0|yes|no|on|off` (trimmed, any case);
+  a missing key, `null` or an empty string give the default, a JSON number `1` throws (`src/config/config.cpp:253–295`) —
+  an empty value from `envsubst` means "default".
+- **The libpq environment reaches every connection of the process** — pool, LISTEN connection, leader session.
+  libapostol sets `host`/`port`/`dbname`/`user`/`password`/`sslmode` from `PG*` itself, and libpq fills every other unset
+  keyword from the service file and the environment (`PGSERVICEFILE`, `PGCONNECT_TIMEOUT`, `PGOPTIONS`, …)
+  (`src/core/settings.cpp:196–366`). A setting tuned for the pool (`tcp_user_timeout`) also bounds the leader lock.
+- **A project's `./configure` may update the submodules** (`git submodule update --init --recursive`, to the pins):
+  building against an unpushed submodule change resets it to the pin. Read the script for its skip option and compare the
+  submodule's `HEAD` after the build.
 
 ## Step 12 — Replication (Distributed Deployment)
 

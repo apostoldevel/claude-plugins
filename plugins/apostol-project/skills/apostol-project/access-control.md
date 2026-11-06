@@ -59,6 +59,13 @@
 - **Signing in is an ACL bit too.** `Login()` checks the last bit of `db.acl` (`B'…0001'`) **before** the password and
   refuses with `AccessDenied` (`ERR-400-001`), not with a login error (`admin/routine.sql:6690`, password at `:6714`, 1.2.35).
   An account barred from signing in is a `deny` of that bit (`chmod`), and a test of it expects the access family.
+- **Recovery tickets carry a type since 1.2.36** (`db.recovery_ticket.type`: `R` reset, `V` registration).
+  `NewRecoveryTicket` sets no type, so the column default `R` applies; a door that issues another kind sets the type in the same transaction. Each door checks
+  its own type with `CheckRecoveryTicket(id, code, type)` — the two-argument form is deprecated and accepts any type
+  (`admin/routine.sql:324–426`, 1.2.38). A wrong code costs an attempt; a wrong type answers "not found" and costs none,
+  so `attempts = 0` on a refused ticket tells a type refusal from a code refusal. The answer is write-once: the trigger
+  skips an `UPDATE` that changes `securityAnswer` — the whole row, 0 rows, no error (`admin/table.sql:708–745`) — so a
+  test reads the real code from the message it was sent, never sets it.
 - **`db.user.readonly`** is read by `UpdateUser`, `UpdateGroup`, `SetPassword` and `SignIn` (`admin/routine.sql:3959`,
   `:4066`, `:4338`, `:6819`) and set on insert for the system names and the OAuth2 audiences (`admin/table.sql:245–246`).
   `UpdateUser` and `SetPassword` skip both the right and the flag when `session_user = 'kernel'` (`:3952`, `:4331`): a test
@@ -87,6 +94,15 @@ probed through the `daemon` road at all — `daemon` has USAGE on `daemon` alone
 function directly as `admin` and as `apibot`, and prove an administrator's refusal with an administrator user on a
 non-`kernel` connection.
 
+The platform's administrative writes are guarded by `session_user <> 'kernel' AND NOT IsAdmin()` (`workflow/api.sql`,
+`error/api.sql`, …; `resource/api.sql` since `75152fe`, after the 1.2.38 bump): a `kernel` connection passes by construction, so probe them under
+`SET SESSION AUTHORIZATION daemon` with a user's session, the way AppServer connects. A test harness that opened a
+session as an administrator makes `IsAdmin()` true for every later call on that connection — before a refusal test,
+assert `IsAdmin()` is false on the connection you use. Test your own read doors for one more property: for a
+non-administrator a foreign object should answer as a missing one (`NotFound`) — a different error (a refusal naming
+it, an ambiguity of names) tells the caller it exists. The platform's method doors do not keep it: existence is checked
+in unfiltered `db.object`, then refused with `-003` / `-001`.
+
 ### Every door to an object
 
 An object has more doors than its entity's routes. Besides `/<entity>/…`, these act on it by id: `/method/run|execute`,
@@ -102,6 +118,13 @@ only the action segment of the path and does not check the entity segment agains
 grep its callers, not the door named in the task. A before/after reader covers the state, `db.aou` and `db.object_data`.
 A guard by a list of classes, or "everyone except the administrator", is not a guard for a family of doors: every class
 added later, and the excepted role, keep the door open — close the road itself.
+
+Data reaches a WebSocket by the observer road: each worker LISTENs on the publishers' channels and calls
+`daemon.observer(publisher, code, identity, …)` for every socket marked verified, filtered by `EventListener` /
+`FilterListener` per (publisher, session code, identity) (`observer/routine.sql`). A socket becomes verified by a Bearer
+whose `sub` is the session code, or by `OPEN` with the session's secret or token; other headers authorise calls but do
+not verify. An older WebSocketAPI also pushed by `POST /ws/<code>`: list every road to the socket on your pin and measure
+each before and after a gate — a fix of one road leaves the other as it was.
 
 ### `/api/v2` identity (measured on 1.2.35 — check that your pin has `gateway.request`)
 

@@ -83,7 +83,7 @@ Paths are relative to `skills/apostol-project/`.
 
   The C++ parts of the skill describe v2.
 - **Versions.** Counts and claims about functions state the db-platform version they were measured on: 1.2.20 for
-  the inventory, 1.2.31 as of 30.09.2026, 1.2.35 for what was added on 23.10.2026. Check your pin with `cat <sql>/platform/VERSION`.
+  the inventory, 1.2.31 as of 30.09.2026, 1.2.35 for what was added on 23.10.2026, 1.2.38 for what was added on 06.11.2026. Check your pin with `cat <sql>/platform/VERSION`.
 
 ## Feedback
 
