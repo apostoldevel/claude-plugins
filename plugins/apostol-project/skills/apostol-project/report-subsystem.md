@@ -2,74 +2,74 @@
 
 > Companion document for `SKILL.md` (skill `/apostol-project`).
 >
-> Полная справка по подсистеме отчётов db-platform: типы отчётов, готовых
-> отчётов, workflow, async-микросервисная интеграция, ReportServer, pattern
-> `rpc_*` + `rcb_*` + callback.
+> Full reference for the db-platform report subsystem: report types, ready
+> reports, workflow, async microservice integration, ReportServer, the
+> `rpc_*` + `rcb_*` + callback pattern.
 >
-> **When to read:** перед тем как создавать новый отчёт, дорабатывать
-> существующий, интегрировать async-микросервис генерации файлов (DOCX/PDF/Excel),
-> или разобраться откуда берётся `Reports UI` и «История отчётов».
+> **When to read:** before creating a new report, changing an existing one,
+> integrating an async file-generation microservice (DOCX/PDF/Excel),
+> or working out where `Reports UI` and "Report history" come from.
 
 ---
 
-## 1. Двухуровневая модель отчётов
+## 1. Two-level report model
 
-Platform различает **две сущности с разной семантикой**, и путать их —
-основная причина ошибок:
+The platform distinguishes **two entities with different semantics**, and mixing
+them up is the main source of errors:
 
-| Уровень | Сущность | Зачем |
+| Level | Entity | Purpose |
 |---|---|---|
-| **Definition** | `db.report` (reference) | Статичный «каталог» отчётов: что существует, где висит в UI, какая форма параметров, какая процедура выполняется |
-| **Ready** | `db.report_ready` (document) | Динамический экземпляр запуска: конкретные параметры из формы, состояние выполнения, готовый файл-результат |
+| **Definition** | `db.report` (reference) | Static "catalog" of reports: what exists, where it sits in the UI, which parameter form, which procedure runs |
+| **Ready** | `db.report_ready` (document) | Dynamic run instance: the concrete parameters from the form, execution state, the resulting file |
 
-Один definition → много ready (по одному на каждый запуск пользователем).
+One definition -> many ready (one per each run by a user).
 
-### 1.1 Definition (статичный)
+### 1.1 Definition (static)
 
-Создаётся **один раз** в `init.sql` через `InitReport()` / `InitObjectReport()`
-/ `CreateReport()`. Это REFERENCE-сущность (entity = `report`, parent = `reference`).
+Created **once** in `init.sql` through `InitReport()` / `InitObjectReport()`
+/ `CreateReport()`. This is a REFERENCE entity (entity = `report`, parent = `reference`).
 
 ```
 db.report
 ├── id         uuid
-├── reference  uuid  → db.reference (наследование)
-├── tree       uuid  → ReportTree (узел в дереве UI)
-├── form       uuid  → ReportForm  (параметры формы)
-├── binding    uuid  → class_tree   (NULL для global, class для object-scoped)
+├── reference  uuid  → db.reference (inheritance)
+├── tree       uuid  → ReportTree (node in the UI tree)
+├── form       uuid  → ReportForm  (form parameters)
+├── binding    uuid  → class_tree   (NULL for global, class for object-scoped)
 └── info       jsonb
 ```
 
-**Definition types** (`db.type` на классе `report`):
+**Definition types** (`db.type` on the `report` class):
 
-| Type code | Применение | Где видно в UI |
+| Type code | Use | Where visible in the UI |
 |---|---|---|
-| `report.report` | Стандартный отчёт в дереве | Reports UI tree, форма параметров |
-| `object.report` | Отчёт привязан к классу объекта (через `binding`) | В карточке объекта данного класса (как контекстная кнопка) |
-| `import.report` | Отчёт-импорт | Reports UI tree, специальная обработка с upload |
+| `report.report` | Standard report in the tree | Reports UI tree, parameter form |
+| `object.report` | Report bound to an object class (through `binding`) | In the card of an object of that class (as a context button) |
+| `import.report` | Import report | Reports UI tree, special handling with upload |
 
-### 1.2 Ready (динамичный)
+### 1.2 Ready (dynamic)
 
-Создаётся **каждым запуском** через `BuildReport()` → `CreateReportReady()`.
-Это DOCUMENT-сущность (entity = `report_ready`, parent = `document`).
+Created by **every run** through `BuildReport()` → `CreateReportReady()`.
+This is a DOCUMENT entity (entity = `report_ready`, parent = `document`).
 
 ```
 db.report_ready
-├── id        uuid       → db.document (наследование)
+├── id        uuid       → db.document (inheritance)
 ├── document  uuid
-├── report    uuid       → исходный definition
-└── form      jsonb      → snapshot параметров запуска
+├── report    uuid       → source definition
+└── form      jsonb      → snapshot of the run parameters
 ```
 
-**Ready types** (`db.type` на классе `report_ready`):
+**Ready types** (`db.type` on the `report_ready` class):
 
-| Type code | UX эффект |
+| Type code | UX effect |
 |---|---|
-| **`sync.report_ready`** (default в `BuildReport`) | Юрист ждёт результат прямо на форме (loading + polling, бэк формирует → завершает → форма показывает) |
-| **`async.report_ready`** | Юрист сразу видит «формируется», уходит в «Историю отчётов», polling переносится туда |
+| **`sync.report_ready`** (default in `BuildReport`) | The user waits for the result right on the form (loading + polling, the backend generates → completes → the form shows it) |
+| **`async.report_ready`** | The user immediately sees "generating", goes to "Report history", and polling moves there |
 
-**КЛЮЧЕВОЕ:** workflow report_ready (state machine: `created → progress →
-completed/failed/canceled/deleted`) **идентичен** для обоих типов. На уровне
-DB разницы нет — это семантическая метка для frontend UX, ничего больше.
+**KEY POINT:** the report_ready workflow (state machine: `created → progress →
+completed/failed/canceled/deleted`) is **identical** for both types. There is no
+difference at the DB level — it is a semantic label for the frontend UX, nothing more.
 
 ---
 
@@ -94,9 +94,9 @@ DB разницы нет — это семантическая метка для
                           └──────────┘
 ```
 
-Создаётся в state `created`. Чтобы запустить — выполнить action `execute` →
-переход в `progress` → срабатывает `EventReportReadyExecute()` →
-вызывается `ExecuteReportReady(pReady)`.
+Created in state `created`. To run it, perform the `execute` action →
+transition to `progress` → `EventReportReadyExecute()` fires →
+`ExecuteReportReady(pReady)` is called.
 
 ### 2.1 ExecuteReportReady (platform)
 
@@ -110,89 +110,89 @@ ExecuteReportReady(pId uuid)
     END LOOP;
 ```
 
-Находит все `report_routine` привязанные к definition (обычно одна — `rpc_<code>`),
-выполняет каждую с параметрами `(pReady, pForm)`. Они и формируют результат.
+Finds all `report_routine` rows bound to the definition (usually one — `rpc_<code>`)
+and executes each with the parameters `(pReady, pForm)`. They produce the result.
 
 ### 2.2 Action mapping
 
-| Action | Triggered by | Эффект |
+| Action | Triggered by | Effect |
 |---|---|---|
 | `create` | `CreateReportReady()` | INSERT row, state=created |
-| `execute` | `BuildReport()` или явный `api.execute_report_ready()` | → progress + запуск `rpc_*` |
-| `complete` | `DoAction(pReady, 'complete')` из `rpc_*` или callback-цепочки | → completed |
-| `fail` | `DoAction(pReady, 'fail')` при exception | → failed |
-| `cancel` | Пользователь отменил | → canceled |
-| `delete` / `restore` / `drop` | Стандартные lifecycle | — |
+| `execute` | `BuildReport()` or an explicit `api.execute_report_ready()` | → progress + `rpc_*` launch |
+| `complete` | `DoAction(pReady, 'complete')` from `rpc_*` or the callback chain | → completed |
+| `fail` | `DoAction(pReady, 'fail')` on exception | → failed |
+| `cancel` | The user cancelled | → canceled |
+| `delete` / `restore` / `drop` | Standard lifecycle | — |
 
 ---
 
-## 3. Создание отчёта — три точки входа
+## 3. Creating a report — three entry points
 
-### 3.1 `InitReport()` — отчёт в дереве (стандартный)
+### 3.1 `InitReport()` — report in the tree (standard)
 
 ```sql
 -- platform/report/routine.sql:147
 InitReport(pParent, pType, pTree, pCode, pName, pDescription) RETURNS uuid
 ```
 
-Создаёт **тройку**: form + report definition + routine.
+Creates a **triple**: form + report definition + routine.
 
-- Form: `CreateReportForm()` с `code = 'rfc_' || pCode` (frontend ожидает функцию `report.rfc_<code>(pForm uuid, pParams jsonb)`)
-- Definition: `CreateReport(pType, pTree, uForm, ...)` с переданным `pType`
-- Routine: `CreateReportRoutine()` с `code = 'rpc_' || pCode` (обязательно должна существовать как `report.rpc_<code>(pReady uuid, pForm jsonb)`)
+- Form: `CreateReportForm()` with `code = 'rfc_' || pCode` (the frontend expects a function `report.rfc_<code>(pForm uuid, pParams jsonb)`)
+- Definition: `CreateReport(pType, pTree, uForm, ...)` with the passed `pType`
+- Routine: `CreateReportRoutine()` with `code = 'rpc_' || pCode` (must exist as `report.rpc_<code>(pReady uuid, pForm jsonb)`)
 
-Применение: отчёт виден в дереве Reports UI как отдельный пункт.
+Use: the report is visible in the Reports UI tree as a separate entry.
 
-**Пример:**
+**Example:**
 ```sql
 PERFORM InitReport(null, GetType('report.report'), uNode_docs,
                    'invoice_notice',
-                   'Уведомление о задолженности',
-                   'Формирование уведомлений о задолженности.');
--- => создаются rfc_invoice_notice + rpc_invoice_notice (нужно реализовать)
+                   'Payment reminder',
+                   'Generation of payment reminders.');
+-- => creates rfc_invoice_notice + rpc_invoice_notice (must be implemented)
 ```
 
-### 3.2 `InitObjectReport()` — контекстный отчёт на классе
+### 3.2 `InitObjectReport()` — context report on a class
 
 ```sql
 -- platform/report/routine.sql:187
 InitObjectReport(pParent, pTree, pForm, pBinding, pCode, pName, pDescription) RETURNS uuid
 ```
 
-Создаёт definition с **фиксированным** `type=GetType('object.report')` и
-`binding=<class_uuid>`. Форма передаётся **снаружи** (`pForm`) — обычно
-общая для всех object-отчётов (`rfc_identifier_form`). Routine создаётся
-автоматически с `code = 'rpc_' || pCode`.
+Creates a definition with a **fixed** `type=GetType('object.report')` and
+`binding=<class_uuid>`. The form is passed **from outside** (`pForm`) — usually
+shared by all object reports (`rfc_identifier_form`). The routine is created
+automatically with `code = 'rpc_' || pCode`.
 
-Применение: отчёт виден **из карточки объекта** этого класса (контекстная кнопка).
+Use: the report is visible **from the card of an object** of this class (context button).
 
-**Пример:**
+**Example:**
 ```sql
 uForm := CreateReportForm(null, GetType('json.report_form'),
                           'rfc_identifier_form', 'Object identifier form',
                           'rfc_identifier_form', '...');
 
-PERFORM InitObjectReport(null, uRoot, uForm, GetClass('trial'),
-                         'court_order',
-                         'Заявление о вынесении судебного приказа', null);
--- => rpc_court_order должна быть реализована, форма rfc_identifier_form общая
+PERFORM InitObjectReport(null, uRoot, uForm, GetClass('item'),
+                         'object_statement',
+                         'Statement for an object', null);
+-- => rpc_object_statement must be implemented, the rfc_identifier_form form is shared
 ```
 
-### 3.3 `CreateReport()` — низкоуровневый
+### 3.3 `CreateReport()` — low-level
 
 ```sql
 -- platform/report/routine.sql:20
 CreateReport(pParent, pType, pTree, pForm, pBinding, pCode, pName, pDescription, pInfo) RETURNS uuid
 ```
 
-Прямое создание definition без авто-генерации формы и routine. Использовать
-если форма и routine создаются отдельно или переиспользуются.
+Direct creation of a definition without auto-generating the form and routine. Use it
+when the form and routine are created separately or reused.
 
 ---
 
-## 4. Запуск отчёта — два варианта UX
+## 4. Running a report — two UX variants
 
-### 4.1 `BuildReport()` — главная точка запуска
+### 4.1 `BuildReport()` — the main entry point for a run
 
 ```sql
 -- platform/report/routine.sql:224
@@ -202,24 +202,24 @@ BuildReport(pReport, pType DEFAULT NULL, pForm DEFAULT NULL,
   → RETURN CreateReportReady(pReport, pType, pReport, pForm, ...)
 ```
 
-`pType` определяет UX-режим:
-- **NULL / `sync.report_ready`** (default) — юрист ждёт результат в форме
-- **`async.report_ready`** — юрист уходит в «Историю отчётов»
+`pType` determines the UX mode:
+- **NULL / `sync.report_ready`** (default) — the user waits for the result on the form
+- **`async.report_ready`** — the user goes to "Report history"
 
-### 4.2 Через REST `/report/build`
+### 4.2 Through REST `/report/build`
 
-Стандартный flow Reports UI. Frontend выбирает пункт в дереве, заполняет
-форму, нажимает «Продолжить» → `POST /report/build {report_id, form}` →
-backend вызывает `BuildReport(uReport, NULL, jForm)` → default sync.
+The standard Reports UI flow. The frontend picks an entry in the tree, fills in the
+form, presses "Continue" → `POST /report/build {report_id, form}` →
+the backend calls `BuildReport(uReport, NULL, jForm)` → default sync.
 
-### 4.3 Через REST entity-специфичный endpoint (контекстная кнопка)
+### 4.3 Through an entity-specific REST endpoint (context button)
 
-Когда нужен async-режим и pre-filled параметры:
+When async mode and pre-filled parameters are needed:
 
 ```sql
--- В rest.trial:
-WHEN '/trial/court_order/generate' THEN
-  uReport := GetReport('court_order');  -- existing object.report definition
+-- In rest.item:
+WHEN '/item/object_statement/generate' THEN
+  uReport := GetReport('object_statement');  -- existing object.report definition
   uReady  := BuildReport(
     uReport,
     GetType('async.report_ready'),                  -- ← async
@@ -228,19 +228,19 @@ WHEN '/trial/court_order/generate' THEN
   RETURN NEXT row_to_json(t) FROM (SELECT uReady AS report_ready_id, 'progress' AS status) t;
 ```
 
-Frontend получает `report_ready_id`, не делает polling — пользователь видит
-результат позже в «Истории отчётов».
+The frontend receives `report_ready_id` and does not poll — the user sees the
+result later in "Report history".
 
 ---
 
-## 5. Pattern `rpc_*` (обязательная) + `rcb_*` (опциональная для async)
+## 5. Pattern `rpc_*` (mandatory) + `rcb_*` (optional for async)
 
-### 5.1 `rpc_<code>(pReady, pForm)` — обязательная
+### 5.1 `rpc_<code>(pReady, pForm)` — mandatory
 
-Сигнатура: `(pReady uuid, pForm jsonb DEFAULT NULL) RETURNS void`.
+Signature: `(pReady uuid, pForm jsonb DEFAULT NULL) RETURNS void`.
 
-Вызывается через `ExecuteReportReady` после `execute` action. Реализует **всё
-формирование отчёта**:
+Called through `ExecuteReportReady` after the `execute` action. Implements **the whole
+report generation**:
 
 ```sql
 CREATE OR REPLACE FUNCTION report.rpc_invoice_notice(
@@ -250,48 +250,48 @@ CREATE OR REPLACE FUNCTION report.rpc_invoice_notice(
 DECLARE
   vHTML      text;
   html_file  bytea;
-  houses     jsonb;
+  items      jsonb;
 BEGIN
-  -- 1. Извлекаем параметры из формы
-  -- 2. Запрашиваем данные из БД
-  -- 3. Формируем HTML-content
+  -- 1. Extract the parameters from the form
+  -- 2. Query the data from the DB
+  -- 3. Build the HTML content
   vHTML := '...';
   html_file := convert_to(vHTML, 'UTF8');
 
-  -- 4. Сохраняем HTML в файл (всегда — для preview/просмотра)
+  -- 4. Save the HTML to a file (always — for preview/viewing)
   PERFORM SetObjectFile(pReady, null, 'index.html', null,
     length(html_file), localtimestamp, html_file,
     encode(digest(html_file, 'md5'), 'hex'),
-    'Уведомление о задолженности', 'data:text/html;base64,');
+    'Payment reminder', 'data:text/html;base64,');
 
-  -- 5. Если нужен async docx через микросервис — вызываем rcb_*
-  IF houses IS NOT NULL THEN
+  -- 5. If an async docx through a microservice is needed — call rcb_*
+  IF items IS NOT NULL THEN
     PERFORM report.rcb_invoice_notice(pReady,
-      jsonb_build_object('meta', meta, 'houses', houses));
-    -- DoAction(complete) НЕ ВЫЗЫВАЕМ — это сделает callback flow
+      jsonb_build_object('meta', meta, 'items', items));
+    -- DoAction(complete) is NOT called — the callback flow does that
   ELSE
-    -- Иначе сразу завершаем (только HTML, без docx)
+    -- Otherwise complete immediately (HTML only, no docx)
     PERFORM DoAction(pReady, 'complete');
   END IF;
 
 EXCEPTION WHEN others THEN
-  -- error → SetObjectFile с error.html + DoAction(fail)
+  -- error → SetObjectFile with error.html + DoAction(fail)
   PERFORM DoAction(pReady, 'fail');
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = kernel, public, pg_temp;
 ```
 
-### 5.2 `rcb_<code>(pObject, pPayload, pMetadata)` — опциональная
+### 5.2 `rcb_<code>(pObject, pPayload, pMetadata)` — optional
 
-Сигнатура: `(pObject uuid, pPayload jsonb, pMetadata jsonb DEFAULT NULL) RETURNS void`.
+Signature: `(pObject uuid, pPayload jsonb, pMetadata jsonb DEFAULT NULL) RETURNS void`.
 
-Вызывается из `rpc_*` когда нужна async-генерация файла внешним микросервисом
-(docx-service, docx-generator, custom). Это «callback» в смысле «делегирование
-работы через HTTP с callback'ом обратно».
+Called from `rpc_*` when async file generation by an external microservice is needed
+(docx-service, docx-generator, custom). This is a "callback" in the sense of "delegating
+the work over HTTP with a callback back".
 
 ```sql
 CREATE OR REPLACE FUNCTION report.rcb_invoice_notice(
-  pObject       uuid,         -- = pReady из rpc_*
+  pObject       uuid,         -- = pReady from rpc_*
   pPayload      jsonb,
   pMetadata     jsonb DEFAULT null
 ) RETURNS void AS $$
@@ -313,34 +313,34 @@ BEGIN
     'api.<service>_fail',     -- on connect/error
     '<service>', 'default', 'generate', null, 'curl', pMetadata);
 EXCEPTION WHEN others THEN
-  -- error → SetObjectFile с error.html + DoAction(fail)
+  -- error → SetObjectFile with error.html + DoAction(fail)
   PERFORM DoAction(pObject, 'fail');
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = kernel, public, pg_temp;
 ```
 
-`rcb_*` **только запускает** http.fetch и возвращает управление. Реальное
-завершение workflow (`DoAction(complete)`) произойдёт **после** того как
-async-микросервис пришлёт callback и файл будет скачан PGFile'ом.
+`rcb_*` **only starts** http.fetch and returns control. The real
+completion of the workflow (`DoAction(complete)`) happens **after** the
+async microservice sends its callback and the file is downloaded by PGFile.
 
-### 5.3 Когда нужна `rcb_*`
+### 5.3 When `rcb_*` is needed
 
-- ✅ Нужна docx/pdf-генерация во внешнем сервисе (async, с callback)
-- ✅ Нужна PDF-конверсия (LibreOffice headless)
-- ✅ Нужен внешний расчёт/обработка
-- ❌ Не нужна для чисто-SQL отчётов (HTML-генерация в `rpc_*` → `DoAction(complete)` сразу)
+- ✅ docx/pdf generation in an external service is needed (async, with callback)
+- ✅ PDF conversion is needed (LibreOffice headless)
+- ✅ External calculation/processing is needed
+- ❌ Not needed for pure-SQL reports (HTML generation in `rpc_*` → `DoAction(complete)` immediately)
 
 ---
 
-## 6. Полный pipeline async-генерации (DOCX через микросервис)
+## 6. Full async generation pipeline (DOCX through a microservice)
 
 ```
-Frontend                Backend (PL/pgSQL)              Микросервис
-─────────                ──────────────────              ───────────
+Frontend                Backend (PL/pgSQL)              Microservice
+─────────                ──────────────────              ────────────
 
 POST /report/build  ───▶ rest.report dispatcher
                          BuildReport(uReport,
-                           pType=sync.report_ready,    -- или async
+                           pType=sync.report_ready,    -- or async
                            pForm)
                          CreateReportReady(...)
                          → state=created
@@ -352,9 +352,9 @@ POST /report/build  ───▶ rest.report dispatcher
                          → EXECUTE rpc_<code>(pReady, pForm)
                          │
                          ├── rpc_<code>:
-                         │   1. Извлечь pForm параметры
-                         │   2. Запрос данных из БД
-                         │   3. Сформировать payload
+                         │   1. Extract pForm parameters
+                         │   2. Query data from the DB
+                         │   3. Build the payload
                          │   4. SetObjectFile(pReady, 'index.html', html)
                          │   5. rcb_<code>(pReady, payload)
                          │      │
@@ -364,22 +364,22 @@ POST /report/build  ───▶ rest.report dispatcher
                          │            POST, headers, payload)
                          │          → NOTIFY 'http'
                          │
-              (управление вернулось)
+              (control returned)
                                                         PGFetch (C++ helper)
                                                         picks up 'http' notify
-                                                        POST <service>/generate ─▶ микросервис
-                                                                                   принимает task
-                                                                                   возвращает 200 OK
-                                                                                   (или 202 queued)
+                                                        POST <service>/generate ─▶ microservice
+                                                                                   accepts the task
+                                                                                   returns 200 OK
+                                                                                   (or 202 queued)
                                                         ← 2xx
                                                         → api.<service>_done(uFetch)
-                                                          (не финиширует workflow,
-                                                           только пометка что fetch ушёл)
+                                                          (does not finish the workflow,
+                                                           only marks that the fetch went out)
 
-(пользователь ждёт... 3-30s)                            Микросервис формирует файл
+(the user waits... 3-30s)                               The microservice generates the file
 
                          POST callback ◀───────────────  POST <backend>/api/v1/callback/<service>/<pReady>
-                         (PGHTTP принимает)              body: {status, result: {file_name, download_url}, ...}
+                         (PGHTTP accepts)                body: {status, result: {file_name, download_url}, ...}
                          → rest.callback
                          → api.<service>_callback(pReady, pPayload)
                          │
@@ -396,112 +396,112 @@ POST /report/build  ───▶ rest.report dispatcher
                          │       size=0, mtime=now,
                          │       data=convert_to(<service>/download_url),
                          │       sum=null, file_name,
-                         │       mime='text/x-uri',  -- ← URL, не bytes
+                         │       mime='text/x-uri',  -- ← URL, not bytes
                          │       'api.<service>_download_done',
                          │       'api.<service>_download_fail')
-                         │     -- NOTIFY 'file' уйдёт триггером
+                         │     -- NOTIFY 'file' is sent by a trigger
                          │
                                                         PGFile (C++ helper)
                                                         picks up 'file' notify
-                                                        видит mime='text/x-uri'
-                                                        GET <service>/download_url ─▶ микросервис
+                                                        sees mime='text/x-uri'
+                                                        GET <service>/download_url ─▶ microservice
                                                                                        streams file
                                                         ← file bytes
-                                                        сохраняет в db.file
+                                                        saves into db.file
                                                         + /file/public/report_ready/<pReady>/<file_name>
 
                          api.<service>_download_done(pReady)
                          → DoAction(pReady, 'complete')
                          → state=completed
-                         → EventReportReadyComplete фиксирует в лог
+                         → EventReportReadyComplete records it in the log
 
 Frontend polling /report/ready/get
-видит state=completed
-получает ссылку на /file/public/report_ready/<pReady>/<file_name>
-показывает пользователю
+sees state=completed
+gets the link to /file/public/report_ready/<pReady>/<file_name>
+shows it to the user
 ```
 
-### 6.1 Ключевые моменты
+### 6.1 Key points
 
-1. **`SetObjectFile` с `mime='text/x-uri'`** — особый маркер для PGFile:
-   - Поле `data` содержит **URL** (а не bytes файла)
-   - PGFile делает GET по этому URL и сохраняет ответ как файл
-   - Это и есть «download_url proxy» pattern
+1. **`SetObjectFile` with `mime='text/x-uri'`** — a special marker for PGFile:
+   - The `data` field contains a **URL** (not the file bytes)
+   - PGFile makes a GET to this URL and saves the response as the file
+   - This is the "download_url proxy" pattern
 
-2. **Два callback'а на стороне backend:**
-   - `api.<service>_done/_fail` — для http.fetch (от PGFetch): попал ли запрос в микросервис
-   - `api.<service>_callback` — для callback от микросервиса (через PGHTTP): результат генерации
-   - `api.<service>_download_done/_fail` — для PGFile: скачался ли файл
+2. **Three callbacks on the backend side:**
+   - `api.<service>_done/_fail` — for http.fetch (from PGFetch): whether the request reached the microservice
+   - `api.<service>_callback` — for the callback from the microservice (through PGHTTP): the generation result
+   - `api.<service>_download_done/_fail` — for PGFile: whether the file was downloaded
 
-3. **`DoAction(pReady, 'complete')` срабатывает только после download** — это гарантирует что к моменту complete файл уже в `db.file`.
+3. **`DoAction(pReady, 'complete')` fires only after the download** — this guarantees that by the time of complete the file is already in `db.file`.
 
-4. **Если callback не пришёл за разумное время** — нет автоматического timeout-механизма в платформе. Frontend может определить «stuck progress» сам.
+4. **If the callback does not arrive within a reasonable time** — the platform has no automatic timeout mechanism. The frontend can detect a "stuck progress" on its own.
 
 ---
 
-## 7. Memory: уже зафиксированный feedback
+## 7. A known variation: completing early
 
-Урок одного проекта о завершении асинхронного отчёта:
+A lesson from one project about completing an async report:
 
 > **Async report complete:** DoAction('complete') on report_ready fires
-> immediately on 200/202 (т.е. PGFetch_done), not after callback — releases
+> immediately on 200/202 (i.e. PGFetch_done), not after callback — releases
 > frontend spinner
 
-Это **тонкость production-оптимизации**: некоторые проекты делают
-`DoAction(pReady, 'complete')` уже на стадии `api.<service>_done` (200/202
-ответ от микросервиса), чтобы фронт отпустился сразу. Файл пришёл попозже —
-видно через `SetObjectFile`-обновление. Это **частный случай для UX** где
-важно не блокировать пользователя.
+This is a **subtlety of production optimization**: some projects call
+`DoAction(pReady, 'complete')` already at the `api.<service>_done` stage (the 200/202
+response from the microservice), so that the frontend is released at once. The file arrives
+a bit later — visible through the `SetObjectFile` update. This is a **special case for UX** where
+not blocking the user matters.
 
-**Default pattern** (см. §6) — complete после download.
+**Default pattern** (see §6) — complete after download.
 
 ---
 
-## 8. Anti-patterns в работе с отчётами
+## 8. Anti-patterns when working with reports
 
-| ❌ Anti-pattern | ✅ Правильно |
+| ❌ Anti-pattern | ✅ Correct |
 |---|---|
-| `CreateReport(pType=>GetType('async.report'))` | Такого типа нет на уровне definition. `async/sync` — только на уровне report_ready через `BuildReport(uReport, GetType('async.report_ready'), ...)` |
-| Прямой `http.fetch` к docx-service из `rpc_*` минуя `rcb_*` | Соблюдай `rpc_* → rcb_* → http.fetch` пайплайн; rcb-функция изолирует HTTP-detail |
-| `DoAction(pReady, 'complete')` в `rpc_*` сразу после `rcb_*` | Не делать! Complete должен прийти из callback flow после реальной готовности файла |
-| Хардкод URL микросервиса в `rcb_*` | Через registry: `RegGetValueString('CURRENT_CONFIG', 'CONFIG\Service\<service>\API', 'URL')` |
-| Хардкод callback path | Через registry: `RegGetValueString('CURRENT_CONFIG', 'CONFIG\CurrentProject', 'Backend') || '/api/v1/callback/<service>'` |
-| Создание `db.report` строки руками (INSERT) | Только через `CreateReport()` / `InitReport()` / `InitObjectReport()` — они вызывают workflow events |
-| `BuildReport` без `pForm` когда `rpc_*` ожидает параметры | Frontend должен передать pForm в `POST /report/build`; backend проксирует в BuildReport |
-| Полагаться на sync/async-тип в `rpc_*` для разной логики | rpc — одинаковая для обоих. Sync/async — только UX. Если нужна разная логика — передавай через `pForm` |
-| Забыть `r.code='execute'` event с `'ChangeObjectState();'` | Этот event обязателен для перехода created→progress (для custom workflow extension) |
-| Создавать новый `db.report_ready` руками вместо `BuildReport` | Workflow events не сработают — отчёт зависнет в `created`. Всегда через `BuildReport()` |
+| `CreateReport(pType=>GetType('async.report'))` | There is no such type at the definition level. `async/sync` exists only at the report_ready level through `BuildReport(uReport, GetType('async.report_ready'), ...)` |
+| A direct `http.fetch` to docx-service from `rpc_*`, bypassing `rcb_*` | Keep the `rpc_* → rcb_* → http.fetch` pipeline; the rcb function isolates the HTTP detail |
+| `DoAction(pReady, 'complete')` in `rpc_*` right after `rcb_*` | Do not do this! Complete must come from the callback flow after the file is really ready |
+| Hardcoded microservice URL in `rcb_*` | Through the registry: `RegGetValueString('CURRENT_CONFIG', 'CONFIG\Service\<service>\API', 'URL')` |
+| Hardcoded callback path | Through the registry: `RegGetValueString('CURRENT_CONFIG', 'CONFIG\CurrentProject', 'Backend') || '/api/v1/callback/<service>'` |
+| Creating a `db.report` row by hand (INSERT) | Only through `CreateReport()` / `InitReport()` / `InitObjectReport()` — they invoke workflow events |
+| `BuildReport` without `pForm` when `rpc_*` expects parameters | The frontend must pass pForm in `POST /report/build`; the backend proxies it to BuildReport |
+| Relying on the sync/async type in `rpc_*` for different logic | rpc is the same for both. Sync/async is UX only. If different logic is needed — pass it through `pForm` |
+| Forgetting the `r.code='execute'` event with `'ChangeObjectState();'` | This event is mandatory for the created→progress transition (for a custom workflow extension) |
+| Creating a new `db.report_ready` by hand instead of `BuildReport` | Workflow events will not fire — the report will hang in `created`. Always through `BuildReport()` |
 
 ---
 
-## 9. Reference: чек-лист «новый отчёт через async-микросервис»
+## 9. Reference: checklist "new report through an async microservice"
 
-1. **Schema:** добавить колонки (если нужно) через patch + DDL
-2. **Builder:** `api.build_<code>_context(pSourceObject)` — собирает payload для микросервиса
-3. **Routine:** `report.rpc_<code>(pReady, pForm)` — извлекает params, вызывает builder, SetObjectFile HTML preview, вызывает `rcb_<code>(pReady, payload)`
-4. **Callback wrapper:** `report.rcb_<code>(pObject, pPayload, pMetadata)` — обёртка через abstraction layer (например, `docx.generate()`) или прямой http.fetch
-5. **Callback handler:** `api.<service>_callback(pObject, pPayload)` — обработка success/failed/warnings, SetObjectFile с download_url
-6. **Download handlers:** `api.<service>_download_done(pObject)` + `_download_fail(pObject)` — `DoAction(complete/fail)` после PGFile
-7. **REST callback route:** регистрация `/api/v1/callback/<service>` → `rest.callback` → `api.<service>_callback`
-8. **Definition (init.sql):** `InitReport()` (для дерева) или `InitObjectReport()` (для карточки объекта) — создаст автоматически rfc_/rpc_ заглушки, их нужно реализовать (см. шаги 2-3)
-9. **Registry:** `RegSetValueString` для URL микросервиса + (опц.) per-type routing
-10. **Frontend:** для контекстной кнопки — entity-специфичный endpoint типа `/<entity>/<report_code>/generate`, передавать `BuildReport(..., GetType('async.report_ready'), ...)`. Для дерева — стандартный flow Reports UI без изменений на фронте.
-11. **Smoke:** test `api.build_*_context` → curl test микросервис → polling до complete → проверка `/file/public/report_ready/<pReady>/<file_name>` доступен
+1. **Schema:** add columns (if needed) through a patch + DDL
+2. **Builder:** `api.build_<code>_context(pSourceObject)` — assembles the payload for the microservice
+3. **Routine:** `report.rpc_<code>(pReady, pForm)` — extracts params, calls the builder, SetObjectFile HTML preview, calls `rcb_<code>(pReady, payload)`
+4. **Callback wrapper:** `report.rcb_<code>(pObject, pPayload, pMetadata)` — a wrapper through an abstraction layer (for example, `docx.generate()`) or a direct http.fetch
+5. **Callback handler:** `api.<service>_callback(pObject, pPayload)` — handles success/failed/warnings, SetObjectFile with download_url
+6. **Download handlers:** `api.<service>_download_done(pObject)` + `_download_fail(pObject)` — `DoAction(complete/fail)` after PGFile
+7. **REST callback route:** register `/api/v1/callback/<service>` → `rest.callback` → `api.<service>_callback`
+8. **Definition (init.sql):** `InitReport()` (for the tree) or `InitObjectReport()` (for the object card) — automatically creates rfc_/rpc_ stubs, which must be implemented (see steps 2-3)
+9. **Registry:** `RegSetValueString` for the microservice URL + (optional) per-type routing
+10. **Frontend:** for a context button — an entity-specific endpoint like `/<entity>/<report_code>/generate`, passing `BuildReport(..., GetType('async.report_ready'), ...)`. For the tree — the standard Reports UI flow with no frontend changes.
+11. **Smoke:** test `api.build_*_context` → curl test the microservice → polling until complete → check that `/file/public/report_ready/<pReady>/<file_name>` is available
 
 ---
 
-## 10. Reference: файлы платформы для углубления
+## 10. Reference: platform files for going deeper
 
 - `backend/db/sql/platform/report/routine.sql` — `CreateReport`, `InitReport`, `InitObjectReport`, `BuildReport`
 - `backend/db/sql/platform/report/ready/routine.sql` — `CreateReportReady`, `ExecuteReportReady`
 - `backend/db/sql/platform/report/ready/init.sql` — workflow `report_ready` (states/methods/transitions/events)
-- `backend/db/sql/platform/report/ready/event.sql` — все Event handlers (Create/Execute/Complete/Fail/Cancel/Abort/...)
+- `backend/db/sql/platform/report/ready/event.sql` — all Event handlers (Create/Execute/Complete/Fail/Cancel/Abort/...)
 - `backend/db/sql/platform/report/api.sql` — `api.report_*` REST wrappers
 - `backend/db/sql/platform/report/ready/api.sql` — `api.report_ready_*` + `api.execute_report_ready`
-- `github.com/apostoldevel/db-platform/wiki` — wiki-страницы, при наличии раздела про отчёты
+- `github.com/apostoldevel/db-platform/wiki` — wiki pages, if there is a section on reports
 
-## 11. Reference: как читать production-пример
+## 11. Reference: how to read a production example
 
-В своей конфигурации найдите отчёт, который зовёт внешний сервис, и читайте в таком порядке: definition
-(`report/init.sql`, `InitReport`) → `rfc_<code>` (form) → `rpc_<code>` (main) → `rcb_<code>` (callback к сервису) →
-обработчик колбэка → обработчики загрузки (`_download_done` / `_fail`). Этот порядок даёт полное понимание pipeline.
+In your own configuration find a report that calls an external service, and read in this order: definition
+(`report/init.sql`, `InitReport`) → `rfc_<code>` (form) → `rpc_<code>` (main) → `rcb_<code>` (callback to the service) →
+the callback handler → the download handlers (`_download_done` / `_fail`). This order gives a full understanding of the pipeline.

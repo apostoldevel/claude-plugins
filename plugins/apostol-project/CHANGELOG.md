@@ -3,6 +3,14 @@
 Versions follow [semver](https://semver.org); the current one is in `.claude-plugin/plugin.json`. Dates are the
 author's working days.
 
+## 1.4.1 — 2026-11-09
+
+- **Access control as rules for the author:** the notes on the access layers (`facts-2026-09.md`, `access-control.md`)
+  now say where a right is changed and how to test a gate across the layers; `chmodm` clears the method cache of the
+  method (was "cached rows stay"); a change of a user's groups clears that user's method cache in the same transaction.
+- **English throughout:** `access-control.md` and `report-subsystem.md` translated; the examples use neutral entity
+  and report names.
+
 ## 1.4.0 — 2026-11-06
 
 From the agents' ratings after 1.3.0 (about 80 entries; what holds on every project, checked against db-platform `75152fe` (after the
