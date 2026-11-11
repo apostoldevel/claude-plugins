@@ -3,6 +3,24 @@
 Versions follow [semver](https://semver.org); the current one is in `.claude-plugin/plugin.json`. Dates are the
 author's working days.
 
+## 1.5.0 — 2026-11-11
+
+The structure changes: a short core every role reads, and a route per role.
+
+- **Core `SKILL.md` 32.8k → about 13k characters:** the route table, three layers and the names, must-know, Step 4,
+  the Step 15 digest, how to read the specification, the map of steps, rating the skill.
+- **Nine routes** (`route-sql.md`, `route-cpp-modules.md`, `route-cpp-transport.md`, `route-frontend.md`, `route-go.md`,
+  `route-qa.md`, `route-devops.md`, `route-audit.md`, `route-coordinator.md`) replace the "Read by role" table: what to
+  read now, what to open when the task needs it, what to skip, where to start in the specification, the rules of the layer.
+- **Moved out of the core** (text unchanged except the links): the design and this implementation → `design.md`; Step 14 → `decision-rules.md`;
+  Step 2 → `reading.md`; the platform version → `facts-2026-09.md` § Which platform you stand on; the override of platform
+  functions, `WriteToEventLog`, `gen_kernel_uuid()`, unseeded areas and the commit checklist → `route-sql.md`; the
+  `StreamServer` registration → `route-cpp-modules.md`; checking the specification itself → `route-audit.md`,
+  `route-coordinator.md`. The TL;DR is gone: its lines are in Must-know, Step 15, the briefing line of the core or a route.
+- **Every role** now also sees, in the core: Tier 0 reading first, the Parts of the specification, a generic
+  "before committing" line; `design.md` is named in the SQL, C++ modules, Go, audit and coordinator routes.
+- Step numbers still resolve: the core keeps a one-line map of where each step lives.
+
 ## 1.4.1 — 2026-11-09
 
 - **Access control as rules for the author:** the notes on the access layers (`facts-2026-09.md`, `access-control.md`)

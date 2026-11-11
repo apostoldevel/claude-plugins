@@ -46,9 +46,9 @@ the [marketplace README](../../README.md#install).
 Claude Code loads the skill by itself when a task matches its description. You can also call it explicitly with
 `/apostol-project`. The agent then:
 
-1. reads the core;
-2. finds its row in **Read by role**;
-3. opens the listed references as the task needs them.
+1. reads the core (`SKILL.md`, about 13k characters);
+2. opens its route — one of nine `route-<role>.md` files;
+3. opens the references the route names, as the task needs them.
 
 When briefing a subagent, start the brief with `Activate skill /apostol-project before any work.`
 
@@ -58,9 +58,12 @@ Paths are relative to `skills/apostol-project/`.
 
 | File | What it holds |
 |---|---|
-| `SKILL.md` | Core, read in full: roles, design vs implementation, three layers, naming, must-know, Steps 2, 4, 14, 15, TL;DR |
+| `SKILL.md` | Core, read in full by every role: the route table, three layers and the names, must-know, Step 4, the Step 15 digest |
+| `route-sql.md`, `route-cpp-modules.md`, `route-cpp-transport.md`, `route-frontend.md`, `route-go.md`, `route-qa.md`, `route-devops.md`, `route-audit.md`, `route-coordinator.md` | One role each: what to read now, what to open when the task needs it, what to skip, where to start in the specification, the rules of that layer |
+| `design.md` | The design and this implementation of it; the three boundaries fixed by the platform's author |
+| `decision-rules.md` | Step 14: does the platform already do it, which layer, which companion skill |
 | `anti-patterns.md` | The full Hall of Shame, with the note on the planner and Nested Loop |
-| `reading.md` | Steps 1 and 3: what to read by depth of task, wiki pages, how to navigate an entity; details of Step 2 |
+| `reading.md` | Steps 1, 2 and 3: what to read by depth of task, wiki pages, how to navigate an entity; briefing a subagent |
 | `processes.md` | Steps 5, 11, 12: module pairing, LISTEN/NOTIFY, process model, PgPool, PGFetch, replication |
 | `db-architecture.md` | Step 6: schemas, roles, load order, patches, triggers on platform tables |
 | `entity.md` | Step 7: creating an entity |

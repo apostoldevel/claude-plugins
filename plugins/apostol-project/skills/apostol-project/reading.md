@@ -20,8 +20,8 @@ it under `backend/db/`; others differ again.
 A project's own root `CLAUDE.md` always says which layout is current — read that first.
 
 **Where the project carries the Apostol Specification** (`docs/spec/`): before changing the behaviour of a file, also
-`python3 docs/spec/tools/where.py <file>` — the blocks, requirements and known deviations of that code (SKILL.md, Read by
-role). Read the block it names, not the Part.
+`python3 docs/spec/tools/where.py <file>` — the blocks, requirements and known deviations of that code (your route in SKILL.md).
+Read the block it names, not the Part.
 
 ### Tier 1 — Before creating, modifying, or reviewing any entity
 
@@ -182,7 +182,35 @@ Mandatory before:
 - Debugging report state stuck in `progress`
 - Choosing between `sync.report_ready` vs `async.report_ready` for new UX
 
-## Step 2 details (moved from the core 30.09.2026)
+## Step 2 — Subagent Briefing Rules
+
+When delegating work to a subagent in an Apostol-based project, **only two formats are acceptable**:
+
+### Format 1 — Trivial rote task with a precise plan
+
+`mkdir`, `cp template`, `sed rebrand`, smoke test, `grep` lookup. The subagent does not need platform context. Brief: 2–3 sentences, exact commands.
+
+### Format 2 — Substantive task requiring judgement
+
+Entity creation, workflow design, REST dispatcher, business logic, refactor, debugging beyond a one-line fix. The brief **must include all of these**:
+
+1. **Skill activation** in the first sentence:
+   - `Activate skill /apostol-project before any work.`
+   (For framework dev — never project work — use `/apostol`.)
+
+2. **Mandatory reading list** specific to the task:
+   - For entity creation: list the relevant wiki pages (70-76, 13, 04, 12, 64) + two production entities you have located per Tier 1 above — give their paths in the brief.
+   - For C++ module work: libapostol Architecture + Configuration + the specific module README.
+   - For workflow customization: 04-Workflow + 74-Workflow-Customization + 76-Event-Handler-Guide.
+
+3. **One or two concrete production examples** (from the project itself or another mature configuration) to imitate. Don't make the subagent search.
+
+4. **Explicit anti-patterns checklist** for the task (relevant subset of [`anti-patterns.md`](anti-patterns.md)).
+
+5. **Verification commands** the subagent should run before claiming completion (e.g. `./runme.sh --update`, `\df WriteToEventLog`, `curl /api/v1/<entity>/list`).
+
+6. **What you will not take on trust.** The report comes back as a claim: you recount its numbers and re-run its key
+   measurement on a broken input ([`verification.md`](verification.md) § 8).
 
 ### Why
 
