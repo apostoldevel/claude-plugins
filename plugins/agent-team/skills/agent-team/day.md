@@ -1,6 +1,12 @@
 <!-- Reference of the /agent-team skill, read on demand via the table in SKILL.md. Moved verbatim from SKILL.md (Rule 11) on 30.09.2026; later edits are listed in CHANGELOG.md. -->
 # The working day — regulation
 
+Use this where the project has owner-controlled working days. The current project charter
+defines review/commit policy and readiness wording. This protocol persists work; it does not
+require a long-lived session or an automatic reset. Client events, transport and reset behaviour
+come from the selected [Claude](references/claude-code.md) or [Codex](references/codex.md) profile.
+References below to old numbered rules refer to [the field guide](references/field-guide.md).
+
 A working day is the unit of the team's memory: a folder per agent, a `STATE.md`, a diary. It
 begins when the owner says *"open the day"* and ends when he says *"close it"* — relayed by the
 coordinator. Midnight does nothing. A day that started at noon and ends at 3 a.m. is one day; a
@@ -24,9 +30,9 @@ previous: 2026-09-09, closed 10.09 on the owner's word
 # closed → do not open a new day; wait for the word
 ```
 
-Printed by every agent's `SessionStart` and `PostCompact` hooks, found by walking up the tree —
-so an agent returning from `/clear` or compaction knows the day without asking. Keep it short:
-it is printed to everyone on every restart (Rule 10 in `SKILL.md`).
+Deliver the open DAY through the client's supported startup/recovery briefing, with explicit
+reading as fallback. Verify delivery rather than assuming identical hook events or automatic
+identity recovery. Keep it short because it is read repeatedly.
 
 **Three prohibitions:** no new day by the calendar; no moving `current` without the word (the one
 exception: no tree at all — first launch); no closing the day yourself.
@@ -60,16 +66,18 @@ compacted or cleared context without re-deriving anything.*
 2. Commit what is done. Review should have happened earlier, right after the work.
 3. **Do not start a code review at closing** — it becomes a background process everybody must
    wait for, and the closing stretches for work nobody planned.
-4. Work done, review not — **commit anyway** and write the deferred review into the card and the
-   day's `STATE.md` as an obligation. Compaction destroys uncommitted work; a written obligation
-   survives.
+4. If review is deferred, record that obligation and preserve the work using the project's
+   permitted checkpoint procedure. Do not bypass a mandatory pre-commit review. Context reset
+   does not itself delete files, but unrecorded intent and unowned dirty work are hard to recover.
 5. Write the day's `STATE.md`, then the diary. In that order.
 6. A background process running (build, tests, a long query) — tell the coordinator, wait for it,
    then close. Never report ready over a running process, never kill it to report sooner.
 7. Answer in the readiness form (Rule 11 in `SKILL.md`): one line to the coordinator — *"ready for compaction or
    clear, context N, commit <sha>"* — and **`Ready for compaction or clear`** as the last line in
    the terminal. It means: tree clean, work committed, state written, nothing in this context that
-   is not on disk. Before it, check the branches of your layer — `git branch`, `git worktree list`,
+   is not on disk. Use the project's exact readiness phrase; identify any explicitly deferred
+   review or preserved dirty work instead of claiming a clean tree. Before it, check the branches
+   of your layer — `git branch`, `git worktree list`,
    `git submodule status`: nothing is left that no card names, and nobody tidies up after another
    agent.
 

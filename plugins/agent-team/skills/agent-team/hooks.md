@@ -1,6 +1,14 @@
 <!-- Reference of the /agent-team skill, read on demand via the table in SKILL.md (Rules 2, 9, 10, 11). -->
 # The harness — hooks, their config, their tests
 
+**Claude Code examples only.** Read [the Claude profile](references/claude-code.md) before
+installing these templates. They preserve the original working setup, not a universal schema
+or current-version guarantee. For Codex use [its separate profile](references/codex.md) and
+the project's `.codex` runtime. Do not install these `.claude` settings into Codex. Existing
+working hooks need no rewrite merely because the shared skill now supports both clients.
+References to numbered rules below refer to [the historical field guide](references/field-guide.md).
+Review output rewriting and approval effects before adopting `filter-output.sh`; it is optional.
+
 The templates in `templates/` are what a live team runs, stripped of that team's names. They are
 **not** installed as plugin hooks: a barrier differs per component and per role, so the project
 copies them and configures them.

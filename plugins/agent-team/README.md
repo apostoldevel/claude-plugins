@@ -2,39 +2,34 @@
 
 # agent-team
 
-An [Agent Skill](https://docs.claude.com/en/docs/claude-code/skills), packaged as a Claude Code plugin, for running
-development **with** a team of named Claude Code agents rather than handing it over. The agents are long-lived
-foreground sessions: a coordinator and one agent per language layer, plus QA and an auditor when the load calls for
-them. Each has its own memory. They coordinate over a git board, not a chat, and the working day is opened and closed
-on the owner's word.
+An [Agent Skill](https://docs.claude.com/en/docs/claude-code/skills), packaged as a Claude Code plugin, for delivering a
+product **with** a team of agents in specialised roles — a coordinator, one agent per language layer, QA and an auditor
+when the load calls for them — in Claude Code, Codex or any agent CLI that reads instructions and runs commands.
+
+The portable unit of the team is the **card**, not the session: a card that carries its goal, criteria, scope and
+continuation lets any fresh session of any client take the role and continue. Long-lived named sessions, peer
+messaging and context guards are accelerators of one client, kept in separate runtime profiles.
 
 The skill is invoked as `/agent-team`. The companion `/agent-onboarding` covers the documents a project needs; this one
 covers the people.
 
 ## What the agent gets
 
-- **The choice that comes first:** a visible named team or an autonomous fleet. They are not variations of one
-  thing.
-- **Twelve rules, each with the price that bought it:**
-  - roles by language and toolchain;
-  - the launch directory as identity;
-  - four carriers of knowledge (wiki, history by day, cards, memory as a pointer);
-  - a board in git with priorities as groups and queues;
-  - review started by the author;
-  - work in flight limited by people;
-  - sharding;
-  - a write barrier per component;
-  - the cost of what is always read;
-  - a working day opened and closed by the owner's word;
-  - the owner's word carried by record.
-- **A bootstrap checklist** for a new project.
-- **Hook templates**, tested:
-  - a per-role write barrier with a positive allow and its self-contained acceptance test;
-  - a session briefing by launch directory, with a lifecycle log;
-  - a context guard enforcing the 300k / 450k / idle rules;
-  - an output filter for test runs and builds;
-  - `settings.json` for a coordinator and for a layer.
-- **Verified pitfalls:** barriers, hooks, validators, trees and numbers. Each one was found by testing.
+- **Product before mechanics:** success is accepted increments and the owner's coordination effort, not agent count or
+  message traffic; four signals measured from git tell when the team's records have outgrown its product.
+- **A portable core and thin adapters:** roles, the card contract, gates and commit policy in the core; messaging,
+  monitors, context counters and reset rituals in a per-client profile. The minimum that works anywhere is the core,
+  the card and one launch line — «Continue as `<role>` on `T<nnn>`».
+- **Evidence-gated transitions:** `review` carries the evidence output; `done` carries an acceptance matrix written by
+  someone other than the author — `pass` / `fail` / `not verified`, where `not verified` is not `pass`.
+- **Handoffs sufficient to resume:** seven fields in the card, from allowed paths to the exact continuation point.
+- **Runtime profiles:** Claude Code, Codex, and any other execution-capable CLI (no transport required; an optional file
+  mailbox).
+- **The field guide:** the original twelve rules of a named Claude Code team, each with the price that bought it —
+  kept as experience, not as mandatory startup reading.
+- **Hook templates** for Claude Code, tested: a per-role write barrier with its acceptance test, a session briefing, a
+  context guard, an output filter, `settings.json` for a coordinator and a layer.
+- **Verified pitfalls:** barriers, hooks, validators, trees and numbers.
 
 ## Install
 
@@ -60,24 +55,28 @@ Paths are relative to `skills/agent-team/`.
 
 | File | What it holds |
 |---|---|
-| `SKILL.md` | Part I, the choice; Part II, the twelve rules and the norms; Part III, the bootstrap checklist |
-| `day.md` | The working day: `DAY`, opening, the seven closing steps, fixing state, the summaries check |
-| `hooks.md` | The harness: what each template does, how to configure, register and test it |
+| `SKILL.md` | The rules: working relationship, knowledge carriers, roles, stages and gates, handoffs, recovery, the smallest runtime, the portable core, product-versus-mechanics signals |
+| `references/claude-code.md` | Claude Code runtime profile |
+| `references/codex.md` | Codex runtime profile |
+| `references/other-clients.md` | Any other CLI: the core with nothing added |
+| `references/field-guide.md` | The original twelve rules and bootstrap checklist of a named Claude Code team, as experience |
+| `day.md` | The owner-controlled working day: `DAY`, opening, closing steps, fixing state |
+| `hooks.md` | Claude Code harness examples: what each template does, how to configure, register and test it |
 | `pitfalls.md` | Verified pitfalls: barrier and hooks, roles and trees, board and cards, instruments, the owner's word |
 | `apostol.md` | Applying the skill in the Apostol ecosystem (libapostol + db-platform) |
-| `templates/` | The hooks and their test, `settings.json` examples, a card, `PRIORITIES.md`, `DAY` |
+| `templates/` | Claude Code hooks and their test, `settings.json` examples, a card, `PRIORITIES.md`, `DAY` |
 
 ## Assumptions
 
-- **Claude Code** with cross-session messaging (`SendMessage`, `ListAgents`) and hooks (`PreToolUse`,
-  `SessionStart`, `PostCompact`, `UserPromptSubmit`, `PostToolUse`, `Stop`).
-- The hook templates need `bash`, `jq` and GNU `realpath`.
-- The measurements in the text come from one production project of the Apostol ecosystem, August–September 2026.
-  Numbers such as the context thresholds are that team's settings. Treat them as defaults.
+- The rules need only files, git and a client that runs commands. The runtime profiles describe what Claude Code and
+  Codex add; a profile states which of its levels were actually observed.
+- The hook templates are Claude Code examples and need `bash`, `jq` and GNU `realpath`.
+- The measurements in the text come from production projects of the Apostol ecosystem, August–November 2026. Numbers
+  such as context thresholds are those teams' settings, not universal limits.
 
 ## Feedback
 
-Issues and pull requests are welcome. The skill keeps only what holds for **any** named team; a rule of one project
+Issues and pull requests are welcome. The skill keeps only what holds for **any** team; a rule of one project
 belongs in that project's charter.
 
 History: [CHANGELOG.md](CHANGELOG.md).

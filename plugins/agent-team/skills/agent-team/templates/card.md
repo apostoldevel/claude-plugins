@@ -16,13 +16,30 @@ opened: YYYY-MM-DD
 
 What to do and why. If it came from a plan, one line with the link — not a retelling.
 
+**Who gains what.** The user, operator or contract that is better off when this is done — one line.
+An internal card names the product outcome it protects; "the team's process" is not an outcome.
+
 ## Done when
 
-A checkable criterion.
+Numbered, checkable criteria — each one verified on its own at review (C1, C2, …).
 
-- `evidence: command` — a concrete command from the layer's `CLAUDE.md` test table. Not "looks done".
+- `evidence: command` — a concrete command from the layer's verification instructions (`CLAUDE.md`
+  or `AGENTS.md`, as applicable). Not "looks done".
 - `evidence: artefact` — a named artefact: a filed application, a published page, a signed document,
   a tag in `origin` — for lines of work where no command exists.
+
+## Stage and handoff
+
+Use this section at a stage boundary or context replacement; keep the existing project's card
+schema when adopting this template into an established board.
+
+- Current stage and responsible role:
+- Allowed paths and relevant contracts/owner decisions:
+- Completed changes: repository + commit; local/pushed:
+- Dirty files and their owners:
+- Checks and results; omitted checks and reasons:
+- Open findings, dependencies, blockers and decisions needed:
+- Next role and exact continuation point:
 
 ## Boundaries
 
@@ -54,3 +71,12 @@ _Decisions and traps as the work goes — the history of the process, the reason
 
 What was done, commits (`repository sha`) and **the output of the evidence command** in a fenced
 block — or the named artefact for `evidence: artefact`. Without it the validator refuses `review`.
+
+**Acceptance** — filled by the reviewer, not the author:
+
+| Criterion | Result | Evidence |
+|---|---|---|
+| C1 | pass / fail / not verified | command output, `file:line`, artefact |
+
+`not verified` is not `pass`. The card moves to `done` only when every criterion is `pass`; a check
+that could not run is listed with its reason and risk, never folded into a general "looks good".

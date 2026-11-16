@@ -40,7 +40,7 @@
     {
       "name": "agent-team",
       "source": "./plugins/agent-team",
-      "description": "Development as a visible named team of Claude Code agents: roles, a git board, a working day on the owner's word, the owner's word by record — with tested hook templates (write barrier, briefing, context guard, output filter).",
+      "description": "Product delivery with a team of agents in specialised roles, in Claude Code, Codex or any agent CLI: the card as the portable unit, evidence-gated acceptance, handoffs, product-versus-mechanics signals, per-client runtime profiles — with Claude Code hook templates (write barrier, briefing, context guard, output filter).",
       "category": "productivity",
       "keywords": [
         "multi-agent",

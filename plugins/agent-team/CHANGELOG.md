@@ -3,6 +3,26 @@
 Versions follow [semver](https://semver.org); the current one is in `.claude-plugin/plugin.json`. Dates are the
 author's working days.
 
+## 2.0.0 — 2026-11-16
+
+The team's process no longer stands on one client. Breaking: `SKILL.md` is a new, shorter rule set; the 1.0.0 rules
+moved to `references/field-guide.md` as experience.
+
+- **The card is the portable unit, not the session.** Long-lived named sessions, peer messaging, monitors and context
+  guards are a client's accelerators; the process works without them.
+- **Portable core and thin adapters (§ 8).** Roles, card contract, gates and commit policy in the core; transport,
+  lifecycle, context counting and reset rituals in a profile per client. Minimum for any CLI: the core, the card, one
+  launch line. A stop rule against rebuilding one client's runtime inside another.
+- **Product before mechanics (§ 9).** Four signals from git: records versus product, user-visible increments versus
+  self-found defects, the owner as message bus, always-read size. Each release plan names its product goal.
+- **Evidence-gated transitions (§ 4).** `done` needs an acceptance matrix by someone other than the author —
+  `pass` / `fail` / `not verified`; minimal output per role; approval gates explicit, "auto" bounded to a named segment.
+- **Runtime profiles:** `references/claude-code.md`, `references/codex.md`, `references/other-clients.md` (no transport
+  required; optional file mailbox).
+- **Card template:** "who gains what", numbered criteria, the stage-and-handoff section, the acceptance matrix.
+- `day.md`, `hooks.md`, `pitfalls.md`, `apostol.md`: a header on which client each applies to; hooks marked as Claude
+  Code examples.
+
 ## 1.0.0 — 2026-09-30
 
 First public release, brought up to date with the practice of the team it was written on.

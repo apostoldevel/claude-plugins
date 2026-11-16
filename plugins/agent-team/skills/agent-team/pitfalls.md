@@ -1,6 +1,11 @@
 <!-- Reference of the /agent-team skill, read on demand via the table in SKILL.md. Moved verbatim from SKILL.md (Part IV) on 30.09.2026; later edits are listed in CHANGELOG.md. -->
 # Verified pitfalls
 
+The concrete payloads, tool names and scripts below come from the original Claude Code setup.
+Use the selected [Claude](references/claude-code.md) or [Codex](references/codex.md) profile;
+reproduce the underlying failure against that client's actual tool schema before porting a fix.
+Historical measurements are evidence for their incident, not universal thresholds or billing rules.
+
 Each of these was found by testing, not by reasoning. Test the barrier the same way: feed the hook
 a tool-call JSON on stdin and check the exit code (`0` allow, `2` block).
 

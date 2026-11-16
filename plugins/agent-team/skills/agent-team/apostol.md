@@ -1,6 +1,11 @@
 <!-- Reference of the /agent-team skill, read on demand via the table in SKILL.md. Moved verbatim from SKILL.md (Part V) on 30.09.2026; later edits are listed in CHANGELOG.md. -->
 # Applying this in the Apostol ecosystem
 
+The project roster and recorded decisions take precedence over the example below. Ownership
+and framework contracts are shared; launch, memory, hook and messaging details follow the
+selected [Claude](references/claude-code.md) or [Codex](references/codex.md) profile. Historical
+slash commands require an actually installed skill; they are not portable installation commands.
+
 The layout repeats across these projects: a workplace/umbrella repo plus separate `backend`
 (C++ on libapostol), `db` (PL/pgSQL on db-platform) and `frontend` repositories, with the
 frameworks vendored as submodules (`db/sql/platform`, `backend/src/lib/libapostol`, shared
