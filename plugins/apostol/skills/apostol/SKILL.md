@@ -1,6 +1,6 @@
 ---
 name: apostol
-description: Use ONLY when developing the frameworks themselves — libapostol (C++20), db-platform (PL/pgSQL), or shared C++ modules/processes (incl. GatewayAPI). For working on projects BUILT ON Apostol, use /apostol-project instead.
+description: Use ONLY when changing the frameworks themselves — libapostol (C++20), db-platform (PL/pgSQL), or shared C++ modules/processes (incl. GatewayAPI). For working on projects BUILT ON Apostol, use /apostol-project instead; for reviewing or auditing framework code without changing it, use /apostol-review.
 allowed-tools: Read
 user-invocable: true
 ---
@@ -8,8 +8,12 @@ user-invocable: true
 # /apostol — Framework Development (libapostol + db-platform + shared modules)
 
 This skill is for changing the **shared infrastructure**: libapostol, db-platform and the reusable C++ modules and
-processes. Working on a project built on Apostol, or only reading or auditing the frameworks without changing them —
-use `/apostol-project`. Never both in one session.
+processes. Working on a project built on Apostol — use `/apostol-project`; reviewing or auditing the frameworks
+without changing them — `/apostol-review` (with `/apostol-project` or nothing beyond the project's `CLAUDE.md`).
+Never `/apostol` and `/apostol-project` in one session.
+
+**The project's `CLAUDE.md` overrides this skill** on who changes what, where a task and its findings are kept,
+review, commit and push. This skill never grants a commit or a push.
 
 After reading, announce: **"Apostol framework context loaded."**
 
@@ -30,7 +34,7 @@ After reading, announce: **"Apostol framework context loaded."**
 | Shared C++ modules (AppServer, AuthServer, GatewayAPI, WebSocketAPI, PGHTTP, FileServer, WebServer, PGFetch, PGFile) | `/apostol` (this) |
 | Shared processes (MessageServer, TaskScheduler, ReportServer, Replication, StreamServer) | `/apostol` (this) |
 | Porting a project from v1 to v2 | `/apostol` (this) |
-| Reading or auditing the frameworks **without editing them** | `/apostol-project` + the code at its pins |
+| Reviewing or auditing the frameworks **without editing them** | `/apostol-review` + the code at its pins |
 | Any project's `configuration/` layer, its own C++ processes, frontend, Docker, deployment | `/apostol-project` |
 | go-platform (`/api/v2`, Go) | the project's Go rules; its contracts with this skill's code are in Part III (§ go-platform below) |
 
@@ -60,13 +64,18 @@ python3 docs/spec/tools/citecheck.py                # after an edit of the spec:
 
 - `unchanged since the pin` → the block describes the code you see; its requirements are what your change keeps, or
   changes on purpose and says so. `CHANGED in N commit(s)` → the code wins; note the disagreement.
-- A fix of a known deviation names its id (`<CODE>.DEV.nn`) in the commit and the task (Part 0, 4.11).
+- A fix of a known deviation names its id (`<CODE>.DEV.nn`) **in the task** — the project's private carrier — and
+  tells whoever keeps the spec. **Never in the upstream commit**: a deviation id points at a finding.
 - **A new pin makes the Part that cites it stale.** Moving a pin after your change → tell whoever keeps the spec
   which block your change touched; you do not edit the spec in the framework commit.
-- **Deviation tables and `90` clauses hold unfixed security findings.** Never copy their text into an upstream
-  commit message, issue, README or code comment — those repositories are public. Name the id and the class of defect.
-- **Neutrality (Part 0, 4.7).** Upstream code, comments, commit messages and READMEs name no project, brand, host,
-  deployment or a project's task number. An existing project word in upstream is itself a recorded deviation — do not add new ones.
+- **Deviation tables and `90` clauses hold unfixed security findings.** Never copy their text, or their ids, into
+  an upstream commit message, issue, pull request, README, test or code comment — those repositories are public.
+- **Public code is impersonal (Part 0, 4.7).** Upstream code, comments, tests, commit messages and READMEs say
+  **what the code does, in English**, and name no project, brand, client, host or deployment, no task id (any
+  project's) and no requirement or deviation id (`<CODE>.FR.nn`, `<CODE>.NFR.nn`, `<CODE>.DEV.nn`). Above all:
+  no attack path, no unfixed weakness, no incident, secret or internal figure. An existing project word in upstream
+  is itself a recorded deviation — do not add new ones. Before writing into a repository you are not sure of:
+  `gh repo view <owner>/<repo> --json visibility`.
 
 ---
 
@@ -109,10 +118,18 @@ closed environment where the fix can be exercised together with real code before
 
 ```
 where.py on the file → patch in the submodule → build and verify together with the project's own code
-                     → review → commit in the submodule → push upstream → move the pin in the project
+                     → review → commit in the submodule, by paths → push upstream (on the owner's word)
+                     → move the pin in the project
 ```
 
-**Commit and push BEFORE `git submodule update`,** or the work is silently discarded.
+- **Commit by paths**, never `git add -A`: a submodule checkout is shared with other sessions.
+- **Push only on the owner's word, as the project records it.** Before it, the impersonal check over everything
+  the push publishes — it prints nothing:
+  ```sh
+  { git log --format=%B @{u}..HEAD; git diff @{u}..HEAD; } | grep -nE '\b[A-Z][A-Z0-9]*\.(FR|NFR|DEV)\.[0-9]+|\bT[0-9]{3,}\b'
+  ```
+  then read the same range by eye for project names, hosts and the description of a defect.
+- **Commit and push BEFORE `git submodule update`,** or the work is silently discarded.
 
 > **A push from a submodule can leave the work at home and still read like success.** On a detached HEAD, or from
 > a local branch that does not carry the commit, nothing is published — and what git prints then depends on
@@ -151,20 +168,42 @@ Correct move: stop, write down **where** the fix belongs (`file:line`), **what**
 requirement** it touches (`where.py`), and **how it will be verified**, and hand that over — a new session in
 framework mode picks it up. The handover is the deliverable.
 
+A fix that comes from a review finding (`/apostol-review`) is the same: the finding stays in the project's private
+carrier; the framework commit says only what the code now does.
+
 ---
 
 ## Golden Rule: Framework First
 
 1. **Search libapostol first** — does the framework already solve this? Check the existing modules for the same
    pattern. If a pattern exists — use it.
-2. **Evaluate reusability** — "Will other Apostol applications benefit?" If yes, the fix belongs in libapostol
-   (`*_utils.hpp`, a base class, a core component), not in the module.
+2. **Evaluate reusability — inside the library boundary.** "Will other Apostol applications benefit?" makes a
+   change a candidate for libapostol (`*_utils.hpp`, a base class, a core component) **only if it is a generic
+   mechanism**. Shared logic that is not generic has its home in a module or in the database.
 3. **Do no harm** — first don't break existing behaviour, second improve. When in doubt, keep the change in the
    module until you are confident.
 4. **Know the API** — the block of Part I (its data types and interfaces tables) and the header, before writing.
 
+### The library boundary
+
+**libapostol is a library. It knows nothing of the modules built on it.** No code that exists for one module (its
+types, config section, routes, a branch on a module's name), no business rule, no knowledge of a product layer or of
+db-platform objects (calls to `api.*`, `daemon.*`, entity or action names). A module that needs such code keeps it,
+or a module repository shares it. The one layer the library ships on purpose — `src/dbplatform/` behind
+`WITH_DB_PLATFORM` — is not a place to grow: a new db-platform call belongs to the module that makes it.
+
+Code already in libapostol that crosses the boundary is moved out **carefully** — moving it breaks every project
+at its next pin move. Never as a side effect of another change: a move-out is its own task, on the owner's word, with
+- **every consumer** listed — each module, process and project checkout that includes the header or calls the symbol
+  (`/bin/grep -rln --include='*.[hc]pp' '<symbol>' <workspace>`; mirrors out of the count);
+- **the target home** and why there;
+- **the order**: new home first → consumers move, pin by pin → the old API stays as a deprecated forwarding shim until
+  no consumer is left → removal last, as its own change.
+
 Anti-patterns: a module-level patch for what libapostol already solves; duplicating logic from another standard
-module; a workaround without checking whether it is a framework-level bug.
+module; a workaround without checking whether it is a framework-level bug; **moving code that names a module,
+carries a business rule or knows a db-platform object into libapostol "because two modules need it"**; removing a
+libapostol API in the same change that adds its new home.
 
 ---
 
@@ -188,13 +227,21 @@ CMake ≥ 3.25, C++20 without extensions; GCC 12+ / Clang 16+ per the README.
 | OpenSSL, libcurl, libpq, zlib, libdl | system | zlib always (`:85`) |
 | jwt-cpp | vendored, modified | `src/lib/jwt-cpp` |
 
-**The repository has no tests** (no `enable_testing`/`add_test`): verification is by building a project against
-the change and running it.
+**Tests** — `tests/` since `909b599` (none at `08ce5cc`), off by default. Build outside the tree (a shared checkout
+serves other sessions; the first configure fetches dependencies — minutes):
+
+```sh
+cmake -S <libapostol> -B <scratch>/lib-build -DAPOSTOL_BUILD_TESTS=ON && \
+  cmake --build <scratch>/lib-build -j"$(nproc)" && ctest --test-dir <scratch>/lib-build --output-on-failure
+```
+
+A library change adds a test where one can catch the defect; verification still includes building a project
+against the change and running it.
 
 | Flag | Default | Enables |
 |------|---------|---------|
 | `WITH_POSTGRESQL` | ON | PgPool, async queries, LISTEN/NOTIFY, leader lock, BotSession |
-| `WITH_DB_PLATFORM` | ON (needs PostgreSQL) | `src/dbplatform/` — the only place db-platform function names live |
+| `WITH_DB_PLATFORM` | ON (needs PostgreSQL) | `src/dbplatform/` — the only place db-platform function names live; not to grow (§ The library boundary) |
 | `WITH_SSL` | ON | JWT, SmtpClient, TLS client sockets |
 | `WITH_CURL` | ON | `CurlClient`; `FetchClient` selects it, else the built-in `HttpClient` |
 | `APOSTOL_EPOLL_ET` | **OFF** | edge-triggered + one-shot epoll: handlers drain to `EAGAIN` and call `rearm_io()` |
@@ -390,7 +437,9 @@ The change ships to every project, so "it works here" is not a result.
   (show it) or changed on purpose (say so in the commit and the task).
 - **Every caller, not the one you came for.** A changed `daemon.*`/`api.*` function: list the modules that call it
   (`git -C <submodule> grep -n '<name>('` over all twelve) and the configurations that redefine or call it. A changed
-  header: build a project that uses it.
+  header: build a project that uses it. Search with `git grep` or `/bin/grep -rn` over explicit paths — some
+  workspaces alias `grep` to a tool that honours `.gitignore` and skips `src/modules/`; an empty result from it
+  proves nothing.
 - **`SameSite=Lax`, not `Strict`, for a cookie involved in a return from an external provider** — the return is a
   cross-site top-level navigation; a `Strict` cookie is not sent (AuthServer's reasoning: `AuthServer.cpp:99`, `:700`).
 - **In nginx, `add_header` at a nested level cancels all inherited ones.** Verify along two paths: one that sets its

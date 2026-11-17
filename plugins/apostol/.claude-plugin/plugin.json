@@ -1,6 +1,6 @@
 {
   "name": "apostol",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Framework development for Apostol — libapostol (C++20), db-platform (PostgreSQL/PL/pgSQL) and the shared C++ modules and processes (incl. GatewayAPI): the submodule loop, the specification as the map, process model, plug-in contract, schemas and roles, the contracts a platform change must keep, v1→v2 porting.",
   "author": {
     "name": "apostoldevel",
