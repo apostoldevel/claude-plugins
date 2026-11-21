@@ -57,8 +57,8 @@ Inspect the actual tool inventory each session:
 
 Messages carry sender, card/stage and reply address. Batch substantive updates; do not require
 an ACK for every duplicate notification. The owner should not be the routine message bus.
-Executors do not message each other; an executor may knock on the coordinator, and the content is
-in the card either way.
+Executors may message each other on a seam and notify the coordinator on `blocked`/`failed` and on
+finishing, unless the launch already delivers an exit notice; the content is in the card either way.
 
 ## Clear, resume and recovery
 

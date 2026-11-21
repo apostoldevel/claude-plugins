@@ -88,8 +88,9 @@ evidence. They route defects to developers rather than silently changing their i
 DevOps owns authorised infrastructure operations.
 
 Use only roles needed for the stage. An interface seam is settled in the card: the executor
-writes the question, the coordinator runs the neighbouring role on it, and the answer lands in the
-same card or the decision record. Do not invent new roles, product tasks or permissions.
+writes the question and may ask the neighbouring executor directly or through the coordinator; the
+answer lands in the same card or the decision record. Do not invent new roles, product tasks or
+permissions.
 
 ## 4. Deliver bounded stages
 
@@ -176,11 +177,11 @@ Independent review needs a separate session and enough raw evidence to check the
 relabelling the author's own answer is not independent review. The author's own pre-commit review
 (a review subagent inside the executor's run) is a different, earlier check and does not replace it.
 
-**Messages are an accelerator.** An executor may knock on the coordinator; the content is always in
-the card, so nothing is lost on a client without messaging. Executors do not message each other: a
-seam question is written in the card and the coordinator routes it, usually as a run of the
-neighbouring role. Across teams, coordinator talks to coordinator. Avoid ACK loops, roster pings
-and repeated reports without new state.
+**Messages are an accelerator.** The content is always in the card, so nothing is lost on a client
+without messaging. Executors may message each other on a seam; the question and the answer still
+land in the card. An executor notifies the coordinator on `blocked`/`failed` and on finishing,
+unless the launch already delivers an exit notice. Across teams, coordinator talks to coordinator.
+Avoid ACK loops, roster pings and repeated reports without new state.
 
 ## 6. Context and recovery
 

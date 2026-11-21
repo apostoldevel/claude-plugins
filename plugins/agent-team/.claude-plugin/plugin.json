@@ -1,6 +1,6 @@
 {
   "name": "agent-team",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Product delivery with a team of agents in specialised roles, in Claude Code, Codex or any agent CLI: one coordinator window running each card as a background executor that ends with an outcome in the card, authority tiers, the card as the portable unit, evidence-gated acceptance, handoffs sufficient to resume, product-versus-mechanics signals, per-client runtime profiles — with Claude Code hook templates: per-role write barrier and its test, session briefing, context guard, output filter.",
   "author": {
     "name": "apostoldevel",

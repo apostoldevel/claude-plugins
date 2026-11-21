@@ -89,10 +89,15 @@ if os.environ.get("TEAM_RUN") == "background":
     # allow if it matches r"^Outcome: (review|blocked|checkpoint|failed) — ", else block once
 ```
 
-The installed client may also expose its own markers (one version set
-`CLAUDE_CODE_SESSION_ATTENDED=0` in background sessions); treat those as version-specific and
-prefer the team's own variable. Test both branches: feed the hook a `Stop` payload with and without
-the marker, against a card with and without the outcome line, and check the decision.
+Measured on Claude Code 2.1.330 (check again after an upgrade): a variable set in the launching
+shell is absent in a `--bg` session, one passed through `--settings '{"env":{…}}'` is present.
+`ROLE=… claude --bg …` therefore silently starts the directory's default role, and without the
+marker the guard demands the interactive readiness line. The client itself sets
+`CLAUDE_CODE_SESSION_ATTENDED=0` in a `--bg` session, while `CLAUDE_CODE_ENTRYPOINT` is `cli` in
+both kinds — a transcript's `entrypoint` does not tell them apart. Client markers are
+version-specific; prefer the team's own variable. Test both branches: feed the hook a `Stop`
+payload with and without the marker, against a card with and without the outcome line, and check
+the decision.
 
 ## Changing the harness
 

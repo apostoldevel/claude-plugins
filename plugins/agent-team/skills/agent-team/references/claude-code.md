@@ -21,17 +21,21 @@ cd <role-dir> && claude --bg -n <role> --model <model> --effort <effort> \
 - `--model` and `--effort` come from the owner's launch table; a card's own `effort:` wins.
 - `--bg` cannot be combined with `-p`. Use `claude -p` instead when a run must exit by itself and
   nobody may ever attach to it (a scripted check); its stdout is the log.
-- **Environment variables set in the launching shell do not reach a background session** — it is
-  started by the supervisor, with the supervisor's environment. A role variable (two roles sharing
-  one directory) or a "this is a background run" marker must be passed through
-  `--settings '{"env":{…}}'` or the role's settings file. Check it the first time: have the session
-  print `env | grep TEAM_`.
+- **Environment of a background session** (measured on Claude Code 2.1.330; check again after an
+  upgrade): `VAR=x claude --bg …` — `VAR` is absent in the session, it is started by the supervisor
+  with the supervisor's environment; `claude --bg --settings '{"env":{"VAR":"x"}}' …` — `VAR=x` is
+  present. So a role variable (two roles sharing one directory) or a "this is a background run"
+  marker goes through `--settings '{"env":{…}}'` or the role's settings file. Consequence:
+  `ROLE=… claude --bg …` silently starts the directory's default role, and without the background
+  marker the guard demands the interactive readiness line. A `claude -p` run started from the
+  coordinator's shell (as a background shell task) inherits that shell's environment.
 - **Permission prompts.** A prompt in a background session is answered only by attaching. Either
   give the role a permission mode or allow-list that never prompts for its normal work, with the
   write barrier as the real protection, or accept that the run will sit in *Needs input* until the
   coordinator notices it. Owner-only actions must stop as outcome `blocked`, not as a prompt.
-- **Workspace trust.** A background start in a directory never opened interactively fails with
-  "workspace not trusted". Open each role directory once interactively and accept the prompt.
+- **Workspace trust.** A `--bg` start in a directory never trusted fails with "Workspace not
+  trusted. Run `claude` in <dir> once and accept the trust prompt, then retry." Open each role
+  directory once interactively and accept the prompt.
 - **Worktree isolation is on by default for background sessions.** With one executor per
   repository, set `"worktree": {"bgIsolation": "none"}` in settings so the executor works in the
   role's real tree. Keep isolation only for a prepared worktree (SKILL.md § 4).
@@ -70,10 +74,16 @@ context is the point. `--resume <id> --bg` exists to continue a conversation, wh
 
 ## Messages and delegation
 
-Where team messaging is available (`SendMessage`, `ListAgents`), an executor may knock on the
-coordinator; the content stays in the card. Executors do not message each other. A message is not
-the owner's word unless it cites the record. Subagents inside an executor are for its own review
-and bounded reads; they carry the executor's barrier, not another role's.
+Where team messaging is available (`SendMessage`, `ListAgents`), executors may message the
+coordinator and each other on a seam; the question and the answer still land in the card. An
+executor notifies the coordinator on `blocked`/`failed` and on finishing unless the launch already
+delivers an exit notice. Measured: a `claude -p` executor's message to the coordinator is
+delivered, and the end of a `claude -p` run launched as the coordinator's background shell task
+arrives as a task notification by itself — no message needed. A `--bg` session gives no such
+notice: the executor messages, or the coordinator watches `claude agents --json` or subscribes once
+with `SendMessage` `notify_when_idle` (documented in the tool, not measured here). No ACK loops.
+A message is not the owner's word unless it cites the record. Subagents inside an executor are for
+its own review and bounded reads; they carry the executor's barrier, not another role's.
 
 ## Context and hooks
 

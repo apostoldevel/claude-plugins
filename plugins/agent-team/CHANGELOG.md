@@ -3,6 +3,20 @@
 Versions follow [semver](https://semver.org); the current one is in `.claude-plugin/plugin.json`. Dates are the
 author's working days.
 
+## 3.0.1 — 2026-11-21
+
+- **Background-session environment, measured.** On Claude Code 2.1.330 a variable set in the launching shell is
+  absent in a `--bg` session and one passed through `--settings '{"env":{…}}'` is present; the client sets
+  `CLAUDE_CODE_SESSION_ATTENDED=0` there while `CLAUDE_CODE_ENTRYPOINT` stays `cli`; a `claude -p` run started from
+  the coordinator's shell inherits its environment; the exact untrusted-workspace message. `ROLE=… claude --bg …`
+  silently starts the directory's default role. Stated as measured with the version in
+  `references/claude-code.md` and `hooks.md`; check again after an upgrade.
+- **Messages between executors are allowed (§ 3, § 5).** Executors may message each other on a seam; the question
+  and the answer still land in the card. An executor notifies the coordinator on `blocked`/`failed` and on finishing
+  unless the launch already delivers an exit notice — a `claude -p` background shell task does, a `--bg` session
+  does not (`claude agents --json` or a one-shot `notify_when_idle` subscription). No ACK loops. Same wording in the
+  Claude Code and Codex profiles.
+
 ## 3.0.0 — 2026-11-21
 
 The coordinator becomes the control bus; executors run in the background. Breaking: the executor is no longer an
