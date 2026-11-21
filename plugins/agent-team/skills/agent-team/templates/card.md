@@ -4,6 +4,7 @@ title: Short name of the task
 status: queued          # queued | doing | blocked | review | done
 assignee: —             # a list: <team>-db, <team>-backend
 evidence: command       # command | artefact — how acceptance will be shown
+# effort: high          # optional: raises the executor's effort above the role's default in the launch table
 source: —               # where the task came from: docs/plans/…, STATE.md §…, the owner's word with its date
 blocked_by: —           # what exactly is awaited: T0xx, an agent, a decision of the owner
 opened: YYYY-MM-DD
@@ -66,6 +67,16 @@ _Once answered: heading → "— decided :NNNN", and one line "Answer: …" belo
 _Decisions and traps as the work goes — the history of the process, the reason the card lives in git._
 
 - YYYY-MM-DD (agent): what was decided and why. Links: `T0xx`, `docs/plans/…`.
+- YYYY-MM-DD (agent): continuation point — where the next session starts, in one line.
+
+Outcome: review — C1–C3 pass locally, evidence in Outcome
+
+_A background executor ends every run with that line as the **last line of the work log**, after
+the continuation point, then ends its reply. One of four: `review` (criteria met, evidence below),
+`blocked` (a decision or dependency is missing; the question is in "Questions to the owner"),
+`checkpoint` (context threshold reached; the state is recorded, relaunch the same line), `failed`
+(the run broke; the log locator follows). The coordinator acts on it and reports one status line
+to the owner. An interactive session may use the same line._
 
 ## Outcome
 

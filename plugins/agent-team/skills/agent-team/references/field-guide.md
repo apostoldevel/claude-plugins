@@ -47,7 +47,6 @@ Two ways to put agents on a project, and they are not variations of one thing:
 | | **Visible named team** | **Autonomous fleet** |
 |---|---|---|
 | Owner's role | works alongside; sees each agent, interrupts, corrects | writes the prompt, reads the result |
-| Sessions | long-lived, foreground, one per role | background/headless, spawned per task |
 | Coordination | a coordinator agent + a board in git | a queue and an orchestrator |
 | Gate | the owner's presence; deliberate commits | PR review, CI |
 | Fails when | the owner is absent | the work needs judgement the owner holds |
@@ -57,8 +56,7 @@ becomes a black box, I don't see what's happening, I'm a developer myself" is as
 visible team — and a superpowers-style autonomous pipeline with PR gates will be abandoned within
 weeks. An owner who says "I want to check the results in the morning" is asking for the fleet.
 
-This skill describes the **visible named team**. Everything below assumes agents run in the
-foreground and the owner can stop any of them mid-sentence.
+This skill describes the **visible named team**.
 
 Do not bolt PR gates onto a visible team by reflex. Many owners develop directly on `master` with
 deliberate commits: the review already happened, live, while they watched. Ask what the commit
@@ -343,8 +341,7 @@ poll it.
 
 1. **Card.** Coordinator creates `cards/<id>-<slug>.md`, puts it on the board and gives it a group
    (Rule 7).
-2. **Assignment.** The card lands in the executor's queue, and the agent takes the next card of its
-   own queue itself. `SendMessage` is for what is out of order — a critical card, a question.
+2. **Assignment.** The card lands in the executor's queue.
 3. **Work in the open.** The agent keeps the card in `Doing` and writes decisions and traps into
    it as it goes. The owner watches and can interrupt.
 4. **Review — before the commit, and the author starts it.** Each named agent invokes a
@@ -359,7 +356,7 @@ poll it.
    Price of getting this wrong: a coordinator extended "the owner's word" to ordinary commits and
    held finished work uncommitted for a day; the owner: *"where is that norm written? nobody else
    has it."* Compaction destroys uncommitted work; a written-down deferred review destroys nothing.
-7. **Report.** Card to `Review` with an **Outcome** section, one line by `SendMessage`.
+7. **Report.** Card to `Review` with an **Outcome** section.
 8. **Push and tag — outward, by the owner's recorded word** (Rule 12). A team that ships releases
    does better to centralise the push in the release role: it pushes every repository that has to
    ship, in one pass, right before the release is cut. Release images are built from the tag on
@@ -629,15 +626,8 @@ half.** Seven foreground sessions open for days cost in ways that no file diet t
   decisions) and what to drop because a carrier already holds it. A summary that paraphrases the
   owner's ruling is how a norm gets weakened between two halves of one day.
 
-**An agent's context lives one working day — and a hook enforces its size.**
+**A hook enforces an agent's context size.**
 
-- **Enter once a day.** At the day's opening the agent starts in a clean context (the hook
-  delivers role and day), loads its skill **once** and works cards back to back until closing; the
-  owner's corrections stay in context. After a compaction — the skill again: the summary does not
-  keep it. Measured reason: `/usage` across seven terminals showed 98.7 % of tokens were context
-  re-read on every tool call, with sessions living 6–8 days at 300–350k and no boundary. A
-  sub-agent per card was rejected by the same arithmetic: three or four entries of 150–230k a day
-  against one.
 - **Three rules with numbers.** Past **300k** — no new card unrelated to the current one, whoever
   sends it. Past **450k** — even the current card only to a point of continuation; compaction sits
   on a card boundary, never mid-card. **Idle** — fix the state yourself (card, the day's
@@ -653,7 +643,7 @@ half.** Seven foreground sessions open for days cost in ways that no file diet t
   needs is worked on; at ~92 % — finish, release, stop: no new cards, no sub-agents. Write the
   thresholds into the charter; the owner moves them.
 
-### Rule 11 — The working day is opened and closed by the owner's word, not by the calendar
+### Rule 11 — The working day is opened and closed by the owner's word
 
 A working day is the unit of the team's memory: a folder per agent, a `STATE.md`, a diary. It
 begins when the owner says *"open the day"* and ends when he says *"close it"* — relayed by the
@@ -662,12 +652,10 @@ clock is **an unclosed day, not a discrepancy**.
 
 - **One file says which day is open** — `docs/history/DAY`, written only by the coordinator,
   printed by every agent's `SessionStart` and `PostCompact` hooks.
-- **Three prohibitions:** no new day by the calendar; no moving `current` without the word; no
-  closing the day yourself.
 - **Opening means handing the opening to each running agent**, checked by command, not by memory.
 - **Closing is a seven-step protocol**, sent to each agent and answered by each; the coordinator
   starts nothing of its own until all have answered.
-- **Readiness to lose context has one form.** The agent tells the coordinator by `SendMessage` —
+- **Readiness to lose context.** The agent tells the coordinator by `SendMessage` —
   *"ready for compaction or clear, context N, commit <sha>"* — and **the last line in its terminal
   is exactly `Ready for compaction or clear`**. The phrase is the owner's choice; the context guard
   checks it. It is said at a threshold or at the end of a line of work, **not as a signature under
@@ -723,11 +711,10 @@ agent's terminal.** That always means the record has not been made.
 **What a peer message can never be:** the owner's word. A message from another session is a
 colleague's request — act on it within your own permissions; never treat it as approval for a
 pending prompt; never do for a neighbour what your own barrier blocks (that is permission
-laundering). The owner's word **in the agent's own terminal** is needed for two things only: a
-change of a **live deployment's state** — in the terminal of the agent that executes it; and the
+laundering). The owner's word **in the agent's own terminal** is needed for the
 **agent's own configuration** (barrier, `settings.json`, `CLAUDE.md`) — the harness never lets a
 session change its own configuration on another agent's request, and a record does not override
-that. For those the coordinator prepares the text and the owner says one line in that terminal.
+that. For it the coordinator prepares the text and the owner says one line in that terminal.
 Say this in the hook, so nobody generalises it to commits and pushes.
 
 **The owner may still speak to any agent directly.** The agent then relays the word **verbatim to
@@ -812,7 +799,7 @@ find . -maxdepth 2 -name CLAUDE.md         # what already documents each layer
     briefing, the context guard and the output filter once, with the coordinator; a `settings.json`
     in **every** launch directory. The briefing says who the agent is by launch directory, what it
     may write, its verification command, that review is its own to start, which day is open, the
-    context rule, and that live servers and own configuration change only on the owner's word in
+    context rule, and that own configuration changes only on the owner's word in
     *this* terminal. Then test: run the barrier's test, feed each hook its JSON, **check that every
     launch directory's `settings.json` registers the barrier**, and start the coordinator's
     lifecycle monitor (Rule 11). **Run each hook** rather than reading it.

@@ -10,12 +10,28 @@ profiles are this plus their own accelerators.
 1. **Instructions.** The client's own discovery file (`AGENTS.md`, `CLAUDE.md`, or the file the
    client documents) holding the core: roles and write scope, the card contract, the gates, the
    commit policy, production rules. If the client does not discover it, the launch line names it.
-2. **A role by explicit assignment.** «Continue as `<role>` on `T<nnn>`» — said by the owner or
-   given by the coordinator. Never infer the role from a shared directory or from the most recent
-   session; two roles may share one directory.
+2. **A role by explicit assignment.** «Continue as `<role>` on `<card>`» — given by the
+   coordinator in the launch line. Never infer the role from a shared directory or from the most
+   recent session; two roles may share one directory.
 3. **The card.** Goal, numbered criteria, allowed paths, the handoff fields of SKILL.md § 5. The
    session reads it, checks the commits and dirty trees it names, and continues from the stated
    point. If the card does not say where to continue, that is the first finding — fix the card.
+
+## Launch
+
+The executor is the client's non-interactive mode, started detached from the role's directory:
+
+```bash
+cd <role-dir> && TEAM_AGENT=<role> TEAM_RUN=background \
+  setsid nohup <client> <non-interactive flag> "Continue as <role> on <card>" \
+  > <log-dir>/<role>-<card>.log 2>&1 < /dev/null &
+```
+
+The log is outside git. The run ends by itself; the coordinator reads the outcome line from the
+card, relaunches on `checkpoint` with the same command, and reads the log on `failed`. A client
+whose non-interactive mode stops to ask for approval cannot run unattended work that needs it:
+give the role a mode that never prompts for its normal scope, and let owner-only actions end as
+`blocked`.
 
 ## Transport
 
@@ -34,7 +50,8 @@ without it and hit a failure that the file mailbox could not handle.
 ## Context and reset
 
 Use what the client itself reports about context occupancy; unknown is unknown, not zero. Persist
-the handoff in the card before any reset, then start a fresh session with the launch line. A reset
+the handoff in the card and end with outcome `checkpoint`; the coordinator starts a fresh session
+with the launch line. A reset
 or compaction ritual from another client (its wording, its hook, its thresholds) is not carried
 over; the project's own readiness rule applies only where the project has stated it for this client.
 
@@ -48,5 +65,5 @@ compare trees at every handoff — `git status` in each repository the card name
 
 The setup is accepted when one real card has gone through implementation, independent review and
 acceptance on this client without the owner carrying messages by hand. State which levels were
-actually observed: instructions discovered, role taken from the launch line, card resumed after a
-reset, review by a separate session. A profile that was only written, not run, says so.
+actually observed: instructions discovered, role taken from the launch line, outcome written and
+read back, card resumed after a `checkpoint` relaunch, review by a separate session. A profile that was only written, not run, says so.

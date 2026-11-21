@@ -5,6 +5,26 @@ skills, focused native subagents/reviewers, and independent chat tools when expo
 execute stable project roles without requiring every role to keep one permanent conversation.
 Preserve foreground visibility and interruption when the owner wants to work alongside agents.
 
+## Launching an executor
+
+Codex has no supervisor of background sessions; a detached non-interactive run is the executor:
+
+```bash
+cd <role-dir> && TEAM_AGENT=<role> TEAM_RUN=background \
+  setsid nohup codex exec -m <model> "Continue as <role> on <card>" \
+  > <log-dir>/<role>-<card>-$(date +%Y%m%d-%H%M).log 2>&1 < /dev/null &
+```
+
+- The log lives outside git (an ignored directory or a state directory of the machine); the
+  coordinator reads it on `failed`, the owner may `tail` it.
+- Effort and approval policy come from the role's `.codex/config.toml` or flags the installed
+  version documents; the owner's launch table names them. A run that would need an approval nobody
+  can give must end with outcome `blocked` instead — set the sandbox and approval mode so that the
+  role's normal work never prompts.
+- The process exits when the run ends; the outcome is read from the card, not from the process.
+  Watch with `pgrep -af "codex exec"` and the log; stop with `kill` on the process group.
+- A `checkpoint` relaunch is the same command, a new process, a fresh context.
+
 ## Instructions and configuration
 
 - Use root/layer `AGENTS.md` for durable role boundaries and reading routes; load role files
@@ -37,6 +57,8 @@ Inspect the actual tool inventory each session:
 
 Messages carry sender, card/stage and reply address. Batch substantive updates; do not require
 an ACK for every duplicate notification. The owner should not be the routine message bus.
+Executors do not message each other; an executor may knock on the coordinator, and the content is
+in the card either way.
 
 ## Clear, resume and recovery
 
@@ -48,7 +70,7 @@ Treat this as version-specific evidence, not a permanent claim about all future 
 After the owner resets context, use the smallest explicit bootstrap available:
 
 1. Retained, verified per-session role/mode may supply the assignment; do not use daemon globals.
-2. Otherwise an explicit assignment such as “Continue as <project>-cto on T<nnn>” supplies role and task.
+2. Otherwise an explicit assignment such as “Continue as <role> on <card>” supplies role and task.
 3. Register the actual new UUID, restore its title if useful, reload the common handoff and
    relevant instructions, check commits/dirty files and notify the coordinator of the new address.
 

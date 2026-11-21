@@ -40,7 +40,7 @@
     {
       "name": "agent-team",
       "source": "./plugins/agent-team",
-      "description": "Product delivery with a team of agents in specialised roles, in Claude Code, Codex or any agent CLI: the card as the portable unit, evidence-gated acceptance, handoffs, product-versus-mechanics signals, per-client runtime profiles — with Claude Code hook templates (write barrier, briefing, context guard, output filter).",
+      "description": "Product delivery with a team of agents in specialised roles, in Claude Code, Codex or any agent CLI: one coordinator window running each card as a background executor that ends with an outcome in the card, the card as the portable unit, evidence-gated acceptance, handoffs, product-versus-mechanics signals, per-client runtime profiles — with Claude Code hook templates (write barrier, briefing, context guard, output filter).",
       "category": "productivity",
       "keywords": [
         "multi-agent",

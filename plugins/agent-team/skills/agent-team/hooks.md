@@ -1,4 +1,4 @@
-<!-- Reference of the /agent-team skill, read on demand via the table in SKILL.md (Rules 2, 9, 10, 11). -->
+<!-- Reference of the /agent-team skill, read on demand via the table in SKILL.md; numbered rules are those of the field guide. -->
 # The harness — hooks, their config, their tests
 
 **Claude Code examples only.** Read [the Claude profile](references/claude-code.md) before
@@ -21,7 +21,7 @@ copies them and configures them.
 | `guard-write.sh` | `PreToolUse` `Edit\|Write\|NotebookEdit\|Bash` | coordinator **and every component** | per-role write barrier (Rule 9) |
 | `guard-write.test.sh` | — | next to each barrier | its acceptance: a throwaway workspace, every case as JSON, exit codes checked; with `settings.json` paths as arguments it also checks registration |
 | `session-start.sh` + `briefing.txt` | `SessionStart`, `PostCompact` | coordinator | the briefing by launch directory — who you are, what is yours and what is not, the reading order, the context rule, the open `DAY`; appends `HH:MM <agent> clear\|compact` to the lifecycle log |
-| `context-guard.sh` | `UserPromptSubmit`, `PostToolUse`, `Stop` | coordinator | reads the context size from the transcript's last `usage` record (reset after `compact_boundary`); above `CONTEXT_SOFT` puts the rules and the number into the context, every `CONTEXT_STEP` while working; on `Stop` holds the turn if `READY_PHRASE` is declared but is not the last line |
+| `context-guard.sh` | `UserPromptSubmit`, `PostToolUse`, `Stop` | coordinator | reads the context size from the transcript's last `usage` record (reset after `compact_boundary`); above `CONTEXT_SOFT` puts the rules and the number into the context, every `CONTEXT_STEP` while working; on `Stop` holds the turn if `READY_PHRASE` is declared but is not the last line — in a background session, adapt it to check the outcome line instead (below) |
 | `filter-output.sh` | `PreToolUse` `Bash` | coordinator | rewrites test runs, builds and listed scripts to failures + the summary line; keeps the exit code; first line `[filter] …`; `# nofilter` switches it off for one call |
 | `settings.coordinator.json` | — | `<root>/.claude/settings.json` | registers everything from the root's own `.claude/hooks/` |
 | `settings.layer.json` | — | `<component>/.claude/settings.json` | registers the layer's own barrier and finds the shared hooks by walking **up** the tree |
@@ -53,8 +53,46 @@ echo '{"hook_event_name":"SessionStart","source":"startup"}' \
    The first line runs every case and checks that each listed `settings.json` registers the
    barrier. The second must print a non-zero count from every launch directory: a briefing that
    does not name its agent delivers nothing (`pitfalls.md`).
-6. Start the coordinator's monitor on the lifecycle log (`tail -n0 -F "$LIFECYCLE_LOG"`), and
-   re-arm it after its own clear.
+6. Launch one executor in the background from each role directory and check that its briefing
+   named the role and that the guard fired (`claude logs <role>`). A lifecycle-log monitor is
+   optional: it watches clears of the interactive sessions; executors are watched with
+   `claude agents`.
+
+## Background sessions: the outcome check
+
+Hooks registered for a launch directory fire in background sessions too (observed), so the same
+files serve both kinds of session. Two things differ for an executor:
+
+- **The context rule's last step.** "Record the state and stop" is the outcome `checkpoint`
+  written into the card, then the end of the reply — not the readiness line and not a message
+  asking to be cleared. The guard's text must say so for a background session.
+- **The `Stop` check.** Instead of "the readiness phrase, if declared, is the last line", check
+  "the card named in the launch line ends its work log with `Outcome: review|blocked|checkpoint|failed`
+  before the session ends". Hold the turn once (`stop_hook_active` guards the retry) with a reason
+  that names the card and the four outcomes.
+
+**Telling the two apart.** Do not guess from the transcript. Pass a marker at launch and read it in
+the hook:
+
+```bash
+# launch (Claude Code): a variable from the launching shell does NOT reach a --bg session;
+# pass it through settings
+claude --bg -n <role> --settings '{"env":{"TEAM_RUN":"background","TEAM_CARD":"<card>"}}' \
+  "Continue as <role> on <card>"
+```
+
+```python
+# in context-guard.sh, Stop branch
+if os.environ.get("TEAM_RUN") == "background":
+    card = os.environ.get("TEAM_CARD", "")
+    # find the card file, take the last non-empty line of its work-log section,
+    # allow if it matches r"^Outcome: (review|blocked|checkpoint|failed) — ", else block once
+```
+
+The installed client may also expose its own markers (one version set
+`CLAUDE_CODE_SESSION_ATTENDED=0` in background sessions); treat those as version-specific and
+prefer the team's own variable. Test both branches: feed the hook a `Stop` payload with and without
+the marker, against a card with and without the outcome line, and check the decision.
 
 ## Changing the harness
 

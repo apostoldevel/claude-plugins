@@ -1,4 +1,4 @@
-<!-- Reference of the /agent-team skill, read on demand via the table in SKILL.md. Moved verbatim from SKILL.md (Part IV) on 30.09.2026; later edits are listed in CHANGELOG.md. -->
+<!-- Reference of the /agent-team skill, read on demand via the table in SKILL.md. Later edits are listed in CHANGELOG.md. -->
 # Verified pitfalls
 
 The concrete payloads, tool names and scripts below come from the original Claude Code setup.
@@ -149,11 +149,47 @@ config pointing at it, every case fed as JSON.
   card on them, because the file is read every session and reads as knowledge. Audit the always-read
   files against the code periodically; the audit itself is a card with a subagent per file.
 
+**Background executors**
+
+- **A fresh worktree tests the old code and reports green.** A background session isolated in a new
+  worktree has no initialised submodules, no ignored files (secrets, `.env`), no build cache; a test
+  stack whose compose file mounts the main checkout runs the tests against the main tree, not the
+  worktree — every check passes on code the session never touched. Prepare the worktree (code root
+  as a compose parameter, a worktree-creation hook for submodules and env, a shared build cache) or
+  switch background isolation off and run one executor per repository.
+- **`-p` and `--bg` are different tools.** `claude --bg` is a supervised session you can list, attach
+  to, read and stop; it cannot be combined with `-p`. `claude -p` is a run that exits by itself and
+  that nobody can attach to. Choose `--bg` for executors the owner may want to look into, `-p` for a
+  scripted check.
+- **An unnamed session is found by id only.** Give every executor `-n <role>`: `attach`, `logs` and
+  `stop` take the name, and the session list becomes the roster at a glance.
+- **A variable in the launching shell does not reach a `--bg` session.** The supervisor starts it
+  with its own environment; `ROLE=x claude --bg …` silently launches the default role of that
+  directory. Pass role and markers through `--settings '{"env":{…}}'` and check them once with
+  `env` inside the session.
+- **A directory never opened interactively refuses a background start** ("workspace not
+  trusted"). Open each role directory once and accept the trust prompt before the first launch.
+- **Without a supervisor, background sessions stop after about a minute.** `claude agents` starts
+  it; check that it runs before launching a batch.
+- **An idle unattached session is stopped after about an hour.** Its conversation stays, but the
+  executor did not finish: an outcome is written before the session goes idle, never "after the
+  owner looks".
+- **Hooks fire in background sessions too.** The readiness-line check of an interactive session
+  then holds an executor's turn for a phrase it must not print; give the guard a background branch
+  that checks the outcome line (`hooks.md`).
+- **A permission prompt in a background session waits for an attach nobody makes.** The session
+  sits in *Needs input*. Give the role a mode that never prompts for its normal scope and let
+  owner-only actions end as `blocked`.
+- **Relaunching on `checkpoint` without progress is a loop.** Two relaunches without a new work-log
+  entry, then stop and ask; the cause is usually a card that does not say where to continue.
+
 **The owner's word**
 
-- **"In your terminal" generalised from live servers to everything outward** sends the owner from
-  terminal to terminal; it happened three times on one team (Rule 12). The hook text must scope it:
-  live servers and own configuration only.
+- **"In your terminal" generalised to everything outward** sends the owner from terminal to
+  terminal (Rule 12). The hook text must scope it: the agent's own configuration only. Regulated
+  actions performed before (a push after review and gate, a rollout by the release procedure) go on
+  a relayed record; destructive or unregulated ones stop whoever asks — a background executor stops
+  with `blocked`.
 - **The coordinator advising a neighbouring project "do not start"** on the basis of its own
   understated assessment — decided for their owner. Send the measurement and the trap; the decision
   is theirs.
