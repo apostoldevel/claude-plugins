@@ -71,6 +71,8 @@ IF GetObjectStateCode(uObj) <> 'available' THEN PERFORM DoAction(uObj, 'availabl
   action (`entity/object/routine.sql:744–751`). A gate added to a base class's event runs for every child class that keeps a
   `parent` row for that action. Before placing it, list which actions the children inherit (`db.event` by class and
   action): a gate on `create` / `open` / `edit` / `save` of a base class refuses ordinary users in their own flow.
+- **The default `edit` method has no state** (`AddMethod(null, pClass, null, GetAction('edit'), …)`,
+  `workflow/init.sql:31`, 1.2.43): it is open in every state. A guard on editing reads the object's state itself.
 - **An event text may call a function that does not exist.** `AddEvent` stores text; it fails only when the action runs.
   Compare the function names in `db.event.text` with `pg_proc` on an installed base.
 

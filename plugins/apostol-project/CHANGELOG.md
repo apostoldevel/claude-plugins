@@ -3,6 +3,34 @@
 Versions follow [semver](https://semver.org); the current one is in `.claude-plugin/plugin.json`. Dates are the
 author's working days.
 
+## 1.6.0 — 2026-11-25
+
+Feedback since 1.4.0, each point checked against the code at db-platform 1.2.43 and libapostol `bcca98c`, PostgreSQL
+facts measured on `postgres:18`.
+
+- **Corrected:** the ACU create bit `c` is checked on creation since 1.2.39 and on a class change since 1.2.43, with the
+  `kernel` / `postgres` exemption (`access-control.md`); `StreamServer` is a worker module in the process table
+  (`processes.md`); version labels moved to 1.2.43. The inventory census of configurations is gone from the core and
+  `entity.md` — the rule and its `grep` stay.
+- **`verification.md`:** green for the wrong reason because of the connection (kernel, a swallowing `EXCEPTION`
+  helper, `trust` on loopback, session settings outliving `COMMIT`); a mutant checklist; proving a comment-only change;
+  a new guard reorders old refusals; copied gates and nullable owners; `curl --path-as-is`; one `-f` set per compose
+  experiment; a Cyrillic `git grep`; `docker compose config` prints secrets.
+- **`access-control.md`:** only `db.object` carries access triggers — satellite tables do not; a tenant derived from
+  the session's area follows the area; a bit granted to a group reaches every member.
+- **`processes.md`:** IPC between workers, node metrics, a worker's stop order, `workers: 0`, a 0 ms timer, `${VAR}`
+  in the config, CORS origins on bare libapostol, PGHTTP's default mask and status mapping, the `notify` affinity,
+  `nack`, counting subscribers, `DoFilterListener`.
+- **`anti-patterns.md`:** planner traps (unmarked volatility, `STABLE` per row in a filter, a plpgsql filter in a view,
+  `OR` across a join), `IF … CASE … THEN`, confirming a provider's notice that moves money.
+- **Smaller:** `WriteToEventLog` is silent while the log mode is off, seeds need a patch (`route-sql.md`); the leaf
+  event reads the new state (`facts-2026-09.md`); the default `edit` method has no state (`workflow.md`); the end of a
+  compatibility form, removing workflow data is a patch (`db-architecture.md`); list bodies, error envelopes, `whoami`,
+  `.dockerignore`, one-shot events (`frontend.md`); `postgres:18` data path (`install-pitfalls.md` § AA); device
+  report versus operator edit (`decision-rules.md`); where a sweep's result lands (`reading.md`); re-pin blind spots
+  (`route-audit.md`).
+- **"Rules of this layer"** in the transport, devops, frontend and QA routes; new rules in the Go and C++ modules routes.
+
 ## 1.5.0 — 2026-11-11
 
 The structure changes: a short core every role reads, and a route per role.

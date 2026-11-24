@@ -126,6 +126,9 @@ Subscribe to events:
 
 7 registered publishers: `notify`, `notice`, `message`, `replication`, `log`, `geo`, `file` (the last is accepted but never delivers). 4 delivery types: `notify` (raw), `object` (full via `api.get_*()`), `mixed`, `hook` (server-side `api.run`).
 
+**A one-shot event needs ordering on the client.** A reply that left before the event can arrive after it and overwrite
+it; when the socket comes back, re-read the state rather than wait for a repeat that will not come.
+
 ### Hooks for Server-Side Automation
 
 ```json
@@ -138,6 +141,19 @@ Subscribe to events:
 Server runs the hook on every event match. Powerful for event-driven workflows without external pollers.
 
 ---
+
+### List bodies, error envelopes, fresh data
+
+- **A `/list` body takes `fields`, `search`, `filter`, `reclimit`, `recoffset`, `orderby`; `/count` the same without
+  `fields`**; a bare field key at the top level is refused with 400 `ERR-400-061` (`entity/object/document/rest.sql:103`,
+  `:163–168`, 1.2.43). Build a hook's
+  body from the dispatcher (`rest.sql`), not from a sibling hook.
+- **An error reply is `{"error":{"code":N,"error":"ERR-GGG-CCC","message":…}}`** (`api/api.sql:577`): `code` is only the
+  HTTP group, the catalogue id is `error.error` (it may be null). Branch on `error.error`, and build test errors through
+  the same factory the app uses.
+- **`whoami` read once at boot goes stale**: a screen that needs fresh rights or profile data reads it again.
+- **Docker reads `.dockerignore` only at the root of the build context** (or as `<Dockerfile>.dockerignore` beside the
+  Dockerfile): a nested one does nothing. Check what it keeps out of the image with a positive control.
 
 ### Hiding is not refusing — the client mirrors the server's decision
 

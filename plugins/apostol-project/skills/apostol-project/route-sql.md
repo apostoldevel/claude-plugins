@@ -22,10 +22,15 @@ design before you bend the configuration.
   `grep -n "FUNCTION <name>"` in both `sql/platform/` and `configuration/<dbname>/`, and verify on a fresh install, where
   the load order decides which copy wins.
 - **`WriteToEventLog` 6-arg `(pType, pCode, pScope, pEvent, pText, pObject)`** is the canonical form; the 4- and 5-arg
-  wrappers exist, production code uses 6-arg with an explicit scope (`entity.md`).
+  wrappers exist, production code uses 6-arg with an explicit scope (`entity.md`). **It writes `M`/`W`/`E`/`D` only while
+  `GetLogMode()` is true** (`log/routine.sql:258`, 1.2.43); `SetLogMode(false)` holds for the whole session
+  (`admin/routine.sql:2266`), and service connections run with it. A record that code reads back (diagnostics, a trail a
+  later decision uses) goes through `NewEventLog`, which always writes (`log/routine.sql:46`, `:213`).
 - **`gen_kernel_uuid()` for primary keys**, never `gen_random_uuid()` directly.
 - **Areas are not seeded** — the lifecycle events of the entity that owns them create them (a tenant's create event
   creates its area; `tenant.code = area.code`); do not pre-create them in `FillDataBase` (`db-architecture.md`).
+- **A seed reaches only fresh installs** — `init.sql`, `InitConfiguration()`, a registry key: running bases need a patch
+  (`db-architecture.md` § Tenant ↔ Area relationship, the seed notes).
 
 ## Before committing
 

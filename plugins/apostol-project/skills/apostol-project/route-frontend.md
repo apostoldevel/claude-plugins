@@ -11,3 +11,11 @@ barrier does to your data) · [`anti-patterns.md`](anti-patterns.md) (Frontend).
 
 The rule that bites here is Must-know 8: tokens are cookie-only behind AppServer / GatewayAPI, guest routes are called
 anonymously.
+
+## Rules of this layer
+
+- **Hiding is not refusing:** a client gate mirrors the server function's whole predicate (`frontend.md` § Hiding is not
+  refusing).
+- **List bodies and error envelopes come from the dispatcher:** `filter: {…}`, never a bare key; branch on `error.error`,
+  not on `code` (`frontend.md` § List bodies, error envelopes, fresh data).
+- **An SPA behind `try_files … /index.html` answers 200 for any path:** compare the body, not the status.

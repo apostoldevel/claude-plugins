@@ -212,6 +212,9 @@ Entity creation, workflow design, REST dispatcher, business logic, refactor, deb
 6. **What you will not take on trust.** The report comes back as a claim: you recount its numbers and re-run its key
    measurement on a broken input ([`verification.md`](verification.md) § 8).
 
+7. **Where the result lands.** A sweep has a turn limit: the brief tells it to create its output file first and append
+   each finding as it goes, so a cut-off run leaves what it found.
+
 ### Why
 
 A subagent without platform fluency works "blind" — handles rote steps but breaks on the non-obvious decisions that **always** come up mid-task (the plan never covers everything). Anti-patterns get caught by the code-reviewer agent, but that's reactive — better to prevent via adequate briefing of the implementer.

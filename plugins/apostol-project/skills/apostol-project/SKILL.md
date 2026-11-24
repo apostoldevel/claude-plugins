@@ -57,7 +57,7 @@ role: a role's rule goes to its route, a project's to its `CLAUDE.md`, framework
 | Level | Name | What | You |
 |---|---|---|---|
 | **3 — Configuration** | `configuration/<dbname>/` — `<dbname>` (e.g. `crm`) is the configuration namespace, not a project | the project's business logic: everything that distinguishes one project from another | **write here** |
-| **2 — Platform** | **db-platform** (`github.com/apostoldevel/db-platform`) | PL/pgSQL, shared by everyone: auth · OAuth 2.0 · workflow · entity · files (S3) · pub/sub · audit log · notifications · locale · reports · registry · … — 29 modules, 42 `rest.*` dispatchers, ~456 routes (1.2.38) | read only |
+| **2 — Platform** | **db-platform** (`github.com/apostoldevel/db-platform`) | PL/pgSQL, shared by everyone: auth · OAuth 2.0 · workflow · entity · files (S3) · pub/sub · audit log · notifications · locale · reports · registry · … — 29 modules, 42 `rest.*` dispatchers, ~456 routes (1.2.43) | read only |
 | **1 — Transport** | **libapostol** (`github.com/apostoldevel/libapostol`; libdelphi on v1) | C++20 server: HTTP / WebSocket / TLS / epoll, libpq async — like nginx, not part of your project | read only |
 
 **Apostol** is the umbrella name. **Apostol v2** is the current line (C++20, JSON config); v1 (C++14, INI config,
@@ -84,7 +84,7 @@ Most rework here comes from **solving a problem the platform already solves**, o
    42 dispatchers / ~456 routes that exist: `/list` + filters, or an `observer` hook.
 3. **Every `Object<Entity>` has its `Access<Entity>`**, and `list_` / `count_` go through
    `api.sql('kernel', 'Object<Entity>', …)`. A missing pair, or schema `api`, raises no error — access control silently
-   disappears (the 2026-09 inventory found four of seven projects on schema `api`: `grep -rn "api.sql('api'" sql/configuration/`).
+   disappears — check yours: `grep -rn "api.sql('api'" sql/configuration/`.
 4. **Changing a function's parameters or OUT columns creates an overload.** The old form is dropped **in a patch**, never
    in the re-run files (`routine.sql`, `api.sql`, `view.sql`); details in `anti-patterns.md`. A trigger on an existing
    table goes in a patch too — `--update` never runs `table.sql` (`db-architecture.md`). A form a running binary still

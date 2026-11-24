@@ -15,3 +15,14 @@ A task outside the code — shell, compose, hooks, CI — needs the core and [`v
 
 **The project's own C++ side:** `conf/` holds `default.json` (modules, processes, DB), `default.<profile>.json`,
 `oauth2/` (providers) and `sites/` (per-hostname routing); `backend/configure` downloads and pins the shared components.
+
+## Rules of this layer
+
+- **A guard fails closed.** Every "could not look" is a stop, never a pass; a diagnostic turns every failed read into a
+  flag, never into a clean report. Re-run a preflight right before the step it guards.
+- **A public template or repository is cleaned by class, not by a list:** task ids, names of projects, brands and
+  sites, dates, incident figures, internal pointers — found by reading as well as by `grep`, base64 and JWT samples
+  decoded. The removed text stays in history.
+- **Secrets and images:** `docker compose config` prints the interpolated `.env`; only the `.dockerignore` at the root of
+  the build context counts (`frontend.md`); `postgres:18` keeps its data under `/var/lib/postgresql`
+  (`install-pitfalls.md` § AA); `workers: 0` means the host's cores, not the container's quota (`processes.md`).

@@ -17,6 +17,8 @@
   `module_manager().add_module()`, not `add_custom_process()`. The same holds for anything deriving from
   `StreamServer` / `PgStreamServer` (`entity.md` § Where shared modules really live).
 - **Authentication in C++, authorization in SQL** (SKILL.md, Step 4): the business decision on data stays in SQL.
+- **A module's metrics source is deregistered in `on_stop()`**, never in its destructor; a number from the config may
+  arrive as a string (`processes.md` § Process lifecycle).
 
 **The project's own C++ side:** `conf/` holds `default.json` (modules, processes, DB), `default.<profile>.json`,
 `oauth2/` (providers) and `sites/` (per-hostname routing); `backend/configure` downloads and pins the shared components.

@@ -22,7 +22,7 @@ Every C++ module is **paired** with db-platform PL/pgSQL modules. This is the co
 | **MessageServer** | Process | notice / message | `"outbox"` | SMTP/FCM/push dispatch |
 | **TaskScheduler** | Process | scheduler / api.job | poll; `"job"` in `single` mode (1.2.38) | scheduled SQL execution (cron) |
 | **ReportServer** | Process | report | `"report"` | builds `report_ready` documents; the result is JSON/text in `db.file` — **no CSV/XLSX/PDF export exists in the platform** |
-| **StreamServer** | Process | — | — | UDP listener (telemetry) |
+| **StreamServer** | Worker | — | — | UDP listener (telemetry); `class StreamServer : public Module` |
 | **Replication** | Process | replication | `"replication_cmd"` | shore↔edge sync (HTTP+gzip+OAuth2) |
 
 ### Module Capabilities Quick Reference
@@ -57,7 +57,7 @@ Every C++ module is **paired** with db-platform PL/pgSQL modules. This is the co
 | `outbox` | MessageServer | message enters `prepared` state |
 | `inbox` | **nobody** — MessageServer listens to `outbox` only | inbound message created |
 | `report` | ReportServer | report enters `progress` state |
-| `notice` | (observer) | `db.notice` row created |
+| `notice` | (observer) | `db.notice` row created — `created` is `timestamp` without time zone, and a user deletes their own notices (`DeleteNotice`): not state for code |
 | `log` | (observer) | `db.log` row created |
 | `notify` | (observer) | a `db.notification` row after every executed method — the observer's channel, not the `notify` module |
 | `job` | — (`single`: the subscriber is woken on its personal `job:<n>`) | `api.job_due()` queues a due job (1.2.38); in `legacy` mode TaskScheduler polls `api.job` |
@@ -90,6 +90,18 @@ LISTEN/NOTIFY channel any more — next section.
   a row that was handed out, or for any row when the channel's `on_expire` is set; repeats also need `resend_enabled`.
   Its exceptions are stored in `notify.queue.error`, not raised.
 - Changing a seeded channel row on an existing base: `db-architecture.md` § Tenant ↔ Area, the note **Seeds**.
+
+- **`affinity` picks the consumer** (`notify/table.sql:33`, `:147`, 1.2.43): `any` — the least loaded live subscriber;
+  `key` — the live subscriber that wins a hash of the key; `route` — whoever `target_fn(key)` names at the moment of
+  taking. Under `key` and `route`, `take` holds a row back while an earlier row with the same key is unconfirmed, and its
+  expiry keeps counting from the first look — a row stuck behind an unconfirmed one can expire waiting.
+- **`notify.nack` returns `void`**: whether the row was queued again or closed shows only in the next delivery's
+  `attempts` or in the closed row.
+- **Counting subscribers.** The subscriber runs its heartbeat on its listening connection, so `pg_stat_activity.query`
+  shows the heartbeat, not `LISTEN`: a count by `query ILIKE 'LISTEN%'` undercounts.
+- **`DoFilterListener`** is reached only for custom publishers and `file` (the built-in publishers filter inline), once
+  per listening socket per event (`observer/routine.sql:797`). A raise inside it is caught by `daemon.observer`:
+  that socket silently misses the event, the others get it. Read event fields as text and cast inside `CASE`.
 
 ### Background Service Auth Pattern
 
@@ -212,6 +224,9 @@ After binding ports, the process drops to `<app-user>`. Mandatory for production
   `FetchClient`, which wraps them; not `HttpProxy`, not WebSocket clients (`include/apostol/fetch_policy.hpp`). In `allow`
   a name matches the URL host, an IP or CIDR the dialled address, an optional `:port` the port. Before you add an `allow`,
   find who actually dials the address.
+- **PGHTTP's default mask is `/api/*`** (`PGHTTP.cpp:32–33`): it answers whatever under `/api/` no other module took. The
+  status comes only from a reply `{"error":{"code":N}}`; any other reply is 200, an empty one 204, a database failure 500
+  (`:131–157`) — a handler that returns junk for an unknown path answers 200.
 - **PGHTTP passes request headers to SQL with the sender's spelling of each name** (`src/pg/pg_utils.cpp:202–208`). C++
   lookups ignore case, `->>'X-Real-IP'` in SQL does not: read both spellings. In a security function "`NULL` = skip the
   check" is a trap — refuse at the door when the header is absent. A webhook handler reachable over PGHTTP is often
@@ -251,6 +266,32 @@ After binding ports, the process drops to `<app-user>`. Mandatory for production
   N > 1 each worker sees only its own, and the cluster's truth is in the database. All workers share one listening socket
   inherited from the master; with edge-triggered epoll and several workers, a worker holding more live connections than
   the least loaded one defers its accept (`82e7485`). Distribution is not round robin: measure it over several rounds.
+  A process-level answer (`/metrics`, readiness, a local counter) served by one worker sees only that worker — gather it.
+- **`workers: 0` means the host's online cores** (`sysconf(_SC_NPROCESSORS_ONLN)`, `src/core/settings.cpp:503` at
+  libapostol `bcca98c`, as every cite in the bullets below up to PGHTTP), not a
+  container's CPU quota: libapostol reads no cgroup. Under a CPU limit set the count, and keep the database pool per
+  worker times the workers inside the pooler's pool.
+- **IPC between processes** (libapostol `bcca98c`, `include/apostol/ipc.hpp`): `ipc().request(slot, …)`,
+  `gather(roles, …)`, `send`, `broadcast`, `on(type, handler)` / `off`. `gather` asks every live process of the roles,
+  **this one included** — never add your own share twice; `broadcast` skips the sender. A request started while stopping
+  is refused as `stopping`; inside a callback `ipc().stopping()` tells your own stop from the others' silence — refuse
+  then rather than answer with a partial sum. Before adding cross-worker coordination, find what already arbitrates the
+  same fact (a database row, a channel) and keep one.
+- **Node metrics.** `enable_metrics(prefix)` turns on IPC and the `metrics` handler; `add_metrics(source)` returns an id
+  for `remove_metrics(id)`; `collect_metrics(done, timeout)` gathers every process and merges with `merge_metrics()` —
+  one HELP / TYPE per family, never concatenated text. libapostol has no `/metrics` route: a module serves it.
+  Deregister in `on_stop()`, never in a module destructor — `metrics_sources_` is declared after `module_manager_` and is
+  destroyed first (`application.hpp:539`, `:580`).
+- **A worker stops in this order** (`src/core/application.cpp:1552–1557`): `retire_ipc()` (no handler runs after it,
+  new requests are refused), `stop_http_server()`, `stop_modules()`, `detach_ipc()`, `stop_db()`.
+- **A one-shot timer of 0 ms never fires:** a zero `it_value` disarms the timerfd, and the loop does not clamp it
+  (`src/core/event_loop.cpp:430–438`). Use at least 1 ms.
+- **Environment references in the config** (`${VAR}`, bare `$VAR`) are expanded only inside JSON strings
+  (`src/config/config.cpp:128–131`, `:311`), and an unset one becomes `""`: a number written as `"${VAR}"` arrives as a
+  string. `get_int` / `get_bool` accept it; a reader of your own must too.
+- **CORS origins on bare libapostol.** An OAuth2 client's `javascript_origins` reach the allow-list only through a
+  module that calls `load_allowed_origins()` (`apostol_module.hpp`): among the stock modules only WebServer,
+  FileServer, AppServer, AuthServer and WebSocketAPI call it — PGHTTP does not.
 - **Booleans in the config.** `Config::get_bool` takes the strings `true|false|1|0|yes|no|on|off` (trimmed, any case);
   a missing key, `null` or an empty string give the default, a JSON number `1` throws (`src/config/config.cpp:253–295`) —
   an empty value from `envsubst` means "default".

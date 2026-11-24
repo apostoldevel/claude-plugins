@@ -23,7 +23,22 @@ variable — the topology, one key — so that the control sits where the defect
 
 **Checks that are green for the wrong reason:** an aggregate over zero rows; `bool_and` / `bool_or` skipping NULL (wrap in
 `coalesce(…, false)`); a text match on a jsonb string without `#>> '{}'` (the text starts with a quote); a row inserted by
-a function called in the same statement, which that statement's snapshot cannot see (§ 5).
+a function called in the same statement, which that statement's snapshot cannot see (§ 5); a single-page app behind
+`try_files … /index.html`, which answers 200 for any path — compare the body with `index.html`, not the status; an amount
+computed over a zero price — pin that the inputs are non-zero before asserting what was charged.
+
+**Green for the wrong reason because of the connection.** The session a test runs in is part of the input:
+- `kernel` / `postgres` skip the object update and create checks (the write check and the create bit) and every guard keyed on
+  `session_user`: a road guarded that way cannot be exercised from a `kernel` test transaction (`access-control.md`
+  § Probing rights honestly);
+- a helper that wraps the probed call in `EXCEPTION WHEN others` rolls back its own savepoint, side effects included —
+  "state unchanged" cannot fail there; read the state outside the swallowing block. A probe row written inside a block
+  that fails rolls back with it: log from the path that survives;
+- the `postgres` image keeps the local socket and loopback on `trust` (`pg_hba_file_rules`): a "no password, no entry"
+  check over `127.0.0.1` passes on any password — connect the way the client does and read the rules first;
+- session-scoped settings outlive `COMMIT`: the log mode, the session identity (`set_config(…, false)`), a system
+  context entered by a real sign-in — measure a leak with the next statement on the same connection after `COMMIT`, not
+  inside the test's own transaction.
 
 **Mutate the guard, not only the input.** Break the code under test — drop the check, add an early `RETURN`, swap two
 arguments, remove the lock — and count the red tests. In SQL a mutant is built inside a transaction from
@@ -37,6 +52,27 @@ late) exits with its own code, never as red — or it reads as a killed mutant. 
 unrelated change means the check stopped telling the cases apart. A comment on a constant that a "different constant"
 mutant does not turn red carries nothing. For a sanitiser, fuzz against an oracle on the *shape* of the output, not on
 "it did not crash".
+
+**A mutant checklist.** Each line is a mutant that survived somewhere:
+- one mutant per predicate term — the NULL arm and every member of an exemption list included; mutate the predicate
+  wider, not only out, with one fixture row per case;
+- a mutant removes or inverts a clause: `AND NOT false` changes nothing and survives by construction;
+- a string-replace mutant asserts that its anchor is unique and shows the changed token in `prosrc` before the run;
+- two guards that cover each other are mutated one by one **and** as a pair; a mutant masked by another guard needs a
+  case where only the guard under test stands;
+- a classifying guard needs a negative case for every input it classifies on, not only the one in the report;
+- a sentinel (`0`, an empty value, a default `time_point{}`) is a meaning: make the parser return it and see which
+  reader takes it as data;
+- reproduce another reviewer's mutant verbatim before arguing about it; a variant that maps a value onto itself
+  (`pending` → `pending`) empties the check — add a case with a foreign value;
+- the SQL control is the old body itself: `git show HEAD:<file>` loaded with `\i` inside the test transaction;
+- a mutated source restored with `mv` / `cp` keeps an older mtime and `make` keeps the mutant binary: `touch` it and
+  rerun the baseline; a mutant runner needs a positive green marker (some test frameworks print a summary only on
+  failure), so "killed" is read from a red, never from silence;
+- a gate run on a base where mutants were loaded is void: run it after the last reload and compare each body's
+  `md5(prosrc)` with the source;
+- before writing a test to kill a mutant, check whether the framework already does what the guarded line claims —
+  then the mutant is equivalent.
 
 **A check that something did NOT happen needs proof that the branch ran** — a counter on the branch, a printed canary, the
 allowed role passing the same request. Two mutants: "branch broken" and "branch not reached" must both go red. Give the
@@ -54,6 +90,14 @@ setup a positive control too: the same run with correct input passes.
 neighbours unchanged — a mutant "barred three more accounts" survives a test that looks only at the three. An invariant
 of the change itself ("the patch does not touch passwords") is proven inside the change — a fingerprint before and after
 under `REPEATABLE READ` — not by a test of the result.
+
+**A "comment-only" change is proven, not declared.** SQL: `md5(prosrc)` of every touched function before and after on
+a clean install — equal when the comments sit outside the `$$` bodies; a comment inside a body is part of the function
+and ships like code. A comment edited in a file `--update` does not re-run (`table.sql`, `init.sql`) splits fresh from
+migrated installs in a catalogue fingerprint; `COMMENT ON` is outside it. C++: compare
+`gcc -x c++ -fpreprocessed -dD -E -P` of the old and the new file. Any language: a diff with comments stripped, the
+build, `git diff --check` — and a spoiled copy that must fail the same proof. In a public repository the removed text
+stays in history, and a sentence that hung on a removed reference is rewritten, not cut.
 
 **Test a rule in its own words.** "Refuse an unknown type" is tested with a type that does not exist today (create it in
 the test's transaction), not with today's single case.
@@ -81,6 +125,9 @@ the allowed role passes the same request.
   entity's own `api.*` or route may refuse with `-001` before both. Prove that
   the attacker's request reaches the guard under test — the same request on the attacker's **own** object passes — then
   mutate each guard alone and both: one mutant stays green while the other guard holds.
+- **A new guard reorders the refusals of the old ones.** Once a lock lands in front of another, old tests may pass on
+  the new refusal instead of the one they were written for: after each new guard run the whole suite — not only the new
+  tests — on the merged tree of everything that ships together.
 - **A probe can break its own fixture.** An intruder's failure path may change the victim's state (on older pins a
   WebSocket `OPEN` with a wrong secret closed the victim's session): after
   each intruder, check that the fixture is alive, or "did not receive" is a false green. The control client follows the
@@ -100,14 +147,18 @@ paths is the ordinary place where one stays forgotten.
 **Closing one input closes only that input.** Before "done", list every field of the route, not just the one in the task,
 and every road to the same effect: sibling dispatchers, the generic object routes (`access-control.md` § Every door to an
 object), `/api/v2` (GatewayAPI reaches the same `api.*`), PGHTTP, other protocols. A guard in `rest.<x>` covers `/api/v1`
-only; put it in `api.*` or deeper unless internal callers need the value — then name the roads left open.
+only; put it in `api.*` or deeper unless internal callers need the value — then name the roads left open. A gate copied
+from a neighbouring road carries all its exceptions, and each exception's reason must hold on the new road. A guard on a
+nullable owner column is measured on the rows where it is NULL, across every class the function accepts
+(`GROUP BY class`).
 
 **An outcome that arrives by two roads** (a webhook, and the answer to your own call) **is tested in every order of
 arrival.** A regression hid in "the answer came before the webhook", not in either road's logic.
 
 **Measure the path the client really takes.** A browser app runs on cookies (`__Secure-AT/RT`); a Bearer measurement takes
 another branch (sign-out, for one, answers differently on each). Rights are measured under the role the request really
-uses (`access-control.md` § Probing rights honestly).
+uses (`access-control.md` § Probing rights honestly). `curl` normalises `..` and `%2e%2e` in a path: probe a path guard
+with `--path-as-is` or a raw socket.
 
 ### 4. Data, fixtures and bases
 
@@ -163,7 +214,8 @@ proves nothing. Warm both connections first (the first call on a connection may 
 loads). Order the scene by a lock, not by `sleep` (a third session holding `LOCK <journal table> IN SHARE MODE` keeps the first
 transaction's insert waiting, so it stays uncommitted as long as needed), and judge it by the log, not by timing. A fix that serialises needs a scene where it must **not**
 wait — a known key, two different new keys. A changed lock order is checked against every counterpart, not only the one
-in the task.
+in the task. Map every caller's lock order before adding a lock: when one handler takes the row lock and then an
+advisory lock, every other handler on the same rows takes them in the same order.
 
 **The deadlock victim is chosen by the order of waiting**: the session whose `deadlock_timeout` fires first after the
 cycle closes. Let the side that must lose wait first (poll `pg_locks` for `NOT granted`; `pg_stat_activity` inside a
@@ -185,7 +237,10 @@ a back-off step) and over the phase of the event; write each decisive moment's m
 ### 6. Builds, environments and long runs
 
 **Build what you accept, from the pins** — not from a shared working tree: `git archive <sha>` of the tree plus
-`git archive <pin>` of each submodule. Untracked files (per-environment bundles) stay out — add them by hand.
+`git archive <pin>` of each submodule. Untracked files (per-environment bundles) stay out — add them by hand. Run a
+front-end suite inside the project's image, not on the host: the ICU locale and sibling trees differ. Every
+`docker compose` call of one experiment carries the same `-f` set — a `run` without the mutant's file recreates the
+dependencies from the base configuration; check the result with `docker exec … env`.
 
 **Build from the index.** `git archive $(git write-tree)` exports exactly the staged tree, a staged submodule pin
 included; add `git archive <pin>` of each submodule into its path, and `cmp` one changed file with the pin to prove which
@@ -226,7 +281,9 @@ ignores: search each with its own `git -C <repo> grep`; tools that honour ignore
 you need; an empty pattern (`grep -F "$v"` with `v=""`) matches everything; `wc -l` of an empty string is 1. Run each
 pattern on a synthetic positive first, and say which perimeter you searched (tracked files are not the untracked `.env`).
 Callers of a SQL function are listed from `pg_proc.prosrc` on a base installed at the pin — it holds what really loaded,
-overrides included — and the tree is searched by explicit paths.
+overrides included — and the tree is searched by explicit paths. `git grep -E` rejects a Cyrillic range: use
+`-P '[\x{0400}-\x{04FF}]'`, and do not silence stderr. A `for` loop over files returns the last file's status, not the
+worst.
 
 **Never print a secret to find it.** On a shared base or tree print setting and env **names** (`cut -d= -f1`), never
 values — a `PASSWORD|SECRET` filter misses a password inside a DSN. Classify hits by `file:line`, length and character
@@ -234,7 +291,8 @@ class. A value passed in argv is visible in `/proc/<pid>/cmdline`. A search by k
 `process.env.X || '<default>'`: search by shape *and* by value, without printing the value. psql prints what `SELECT`
 returns, secrets included (`install-pitfalls.md` § F). Never try passwords from another environment's bundle to reach a
 base — ask for access the ordinary way. Mask a secret both when it is written and when it is read: rows written before
-the mask are read without it.
+the mask are read without it. `docker compose config` prints the interpolated `.env`, secrets included — filter it by
+service and key.
 
 ### 8. Documents, reports and reviews
 

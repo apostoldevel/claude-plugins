@@ -42,6 +42,27 @@ Read this list once and **internalize**. These are the patterns that get caught 
 > **Performance: `api.sql()` + `Access<Entity>` + `LIMIT` can flip Postgres to a catastrophic Nested Loop.** Verified live on a production base (2026-07-09): a `list` call with `LIMIT 500` through an `Access<Entity>` join went from 54ms to 7.9s (≈150-240×) on real data. Root cause: the `HAVING (bit_or(allow) & ~bit_or(deny)) & B'100' = B'100'` in every `Access<Entity>` view can't be estimated by the planner, so the join is misestimated at `rows=1` — combined with `ORDER BY … LIMIT`, the planner picks a cheap-startup Nested Loop that re-executes the expensive side once per row. **Systemic**: `api.sql()` generates this join shape for *every* `api.list_<entity>()`/`api.count_<entity>()` whenever an `Access<Entity>` view exists; default `LIMIT` is 500. **This is insurance against a rare catastrophic plan, not an optimisation — verified 2026-08-24: with the order of runs alternated, `on≈136ms` vs `off≈135ms` on 3000 rows, indistinguishable.** An earlier "6% faster" measurement turned out to be warm-up handed to whichever mode ran first. Apply it where you accept the risk, not everywhere. **Do not reach for `enable_nestloop` at all** — that was the obvious fix and it is the wrong one, established 2026-08-24. Two reasons. First, scope: `set_config('enable_nestloop','off',true)` and `SET LOCAL` share the **transaction**, which is not the request — `api.run` is an ordinary function, so one HTTP call is one transaction and a batched payload loops inside it; the whole batch then runs without nested loop, including the key lookups that need it. Confining it to one query means saving and restoring the previous value around the `EXECUTE`, and `api.sql()` has no `EXECUTE` — it `RETURNS text`, and the `EXECUTE` sits in ~116 hand-written per-entity wrappers. Second, and decisive: **the planner is chasing a benefit that cannot exist.** `Access<Entity>` is a *blocking aggregate* (`GROUP BY … HAVING bit_or(…)`) — it physically cannot return a first row before it has computed all of them, so the cheap-startup plan a Nested Loop is chosen for is unreachable by construction. **Take away the illusion instead of forbidding the plan:** where `api.sql()` builds `vJoin`, emit `WITH aou AS MATERIALIZED (SELECT object FROM kernel.access<x>)` and join that. One place to change — the single function that knows about `vJoin` — scope is one query rather than a transaction, no GUC is touched so nothing needs restoring, and the wrappers stay untouched. Materialising costs nothing: the aggregate was going to be computed in full anyway. **Since db-platform 1.2.17 upstream does exactly this** (`api/api.sql:213` at 1.2.31: `WITH aou AS MATERIALIZED`), and since 1.2.34 it joins the set as a semi-join (`… WHERE id IN (SELECT object FROM aou)`), because the materialised CTE alone still let the Nested Loop through — at a cost on tiny access sets, recorded in the
 comment there (check the form: `grep -c 'IN (SELECT object FROM aou)' sql/platform/api/api.sql`, 0 below 1.2.34); a project pinned below 1.2.17 has no fix of any kind — check yours before you assume: `grep -n MATERIALIZED sql/platform/api/api.sql`. Any change to it is framework work: route it through `/apostol`.
 
+> **Planner traps in SQL helpers and views** (measured on PostgreSQL 18):
+> - **A function without a volatility mark is `VOLATILE`** — `LANGUAGE sql` and `plpgsql` alike — and cannot be an index
+>   condition: `WHERE x = f()` turns into a sequential scan that calls `f()` per row. A bare `LANGUAGE sql` body may be
+>   inlined and hide it, but `SECURITY DEFINER` or `SET search_path` stops inlining. Mark a pure helper `STABLE` (or
+>   `IMMUTABLE`): `STABLE SECURITY DEFINER SET search_path = …` still gives an index condition — dropping the definer or
+>   the `SET` is not the fix.
+> - **A `STABLE` function in a filter that cannot use an index runs once per row**; only as an index-condition value is it
+>   evaluated once. In a plpgsql loop or a row filter, read `IsAdmin()`, the scope and the like into a local first.
+> - **A plpgsql row filter inside an `api.*` view** is an opaque per-row call: `LIMIT` and an index cannot pass through it.
+>   Bound the set by object ids through `api.sql` instead (`pFilter` `{"id": […]}`, or an `IN` in `pSearch`). A sort or
+>   filter on a column the view masks with a per-caller `CASE` cannot use that column's index.
+> - **`(A AND B) OR (C AND D)` across a join**: the planner derives per-table restrictions such as `(B) OR (D)` and
+>   evaluates `D` on its table before the join, on rows the join would discard. `CASE WHEN A THEN B WHEN C THEN D ELSE
+>   false END` keeps the order.
+
+> **PL/pgSQL ends an `IF` condition at the first `THEN`:** `IF x <> CASE WHEN … THEN … END THEN` is a syntax error.
+> Parenthesise the `CASE` or assign it to a variable first.
+
+> **A provider's notice that moves money is confirmed by asking the provider** for the object with your own
+> credentials before acting on it. An IP allow-list proves who sent the notice, not what it says.
+
 ### Frontend
 
 | ❌ Anti-pattern | ✅ Correct approach |

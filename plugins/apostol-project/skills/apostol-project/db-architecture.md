@@ -156,7 +156,12 @@ in the same patch transaction, or keep the old form as a wrapper, and put new be
 default (a registry key, a channel mode) — turned on when every instance is new. Measure what the old binary sees: two
 bases on one server, one from the previous tag and one from the tag plus the new tree's `migrate.sh`, and a diff of
 their interface (signatures, OUT columns, constraints, triggers and their state, ACL, defaults); the old call form must
-neither vanish (`42883`) nor become ambiguous after an added overload (`42725`).
+neither vanish (`42883`) nor become ambiguous after an added overload (`42725`). The compatibility form has an end: once
+every instance is new, remove it — a fail-open branch for "the other half is still old" left behind is an open door.
+
+A workflow method, state or transition lives in data on every base: removing or changing one is a patch. Dead code inside
+an event function is a routine change and goes out with `--update`. A patch step that switches something off (disable
+a job) fails on a state with no such transition instead of skipping it.
 
 #### What the patch path executes
 

@@ -350,3 +350,9 @@ set → it wins. A comment in compose is not a source of a value.
 platform reads its key through the GUC `current.key` (`GetSecretKey`, `admin/routine.sql:2141`), which a deployment may
 set per database or per role: tokens and hashes made on the original do not verify on a copy without it. Set the
 settings again on the copy, and name the base a test ran on.
+
+### AA. The `postgres:18` image keeps its data under `/var/lib/postgresql`
+
+The image's volume is `/var/lib/postgresql` and `PGDATA` is `/var/lib/postgresql/18/docker` — not `…/data` as in older
+images. Mount a named volume at `/var/lib/postgresql`; a script that probes `…/data` fails, and a script without
+`set -e` carries on past it.

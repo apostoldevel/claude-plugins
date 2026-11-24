@@ -35,7 +35,11 @@ When solving a problem or implementing a feature, ask in this order:
 5. **Will my approach pass the Hall of Shame?**
    - Run through [`anti-patterns.md`](anti-patterns.md). If your code matches a ❌ row, change the approach.
 
-6. **Is there a companion skill that automates this?**
+6. **When a device's report and an operator's edit describe the same field, which one wins?** Decide it before you write
+   the refresh. A find-or-create keyed by a reported name grows the catalogue by one row per spelling — key it on an
+   identifier, or normalise first.
+
+7. **Is there a companion skill that automates this?**
    - Creating a new entity (Document or Reference) → invoke **`/new-db-entity`** for the full 7-file scaffold wired into create.psql/update.psql.
    - Generating `INDEX.md` for an entity / module → invoke **`/index`** for the platform-standard format.
    - Code review or audit of an Apostol project → invoke **`/apostol-review`** (security, dead code, duplication with libapostol, hard-coded values).

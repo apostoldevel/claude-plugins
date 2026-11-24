@@ -13,3 +13,17 @@ master's respawn — its modules are the CRM stack's, not a bare `CustomProcess`
 
 A task here rarely needs more than the core and [`verification.md`](verification.md). A fix in `libapostol` itself is
 framework work — `/apostol`.
+
+## Rules of this layer
+
+- **Workers are processes.** IPC between them (`gather` includes the asker), node metrics, the stop order, `workers: 0`,
+  a 0 ms timer, `${VAR}` in the config, CORS origins on bare libapostol — `processes.md` § Process lifecycle. Before
+  adding cross-worker coordination, find what already arbitrates the same fact and keep one.
+- **A build without the database** is checked in a scratch build directory of its own (`cmake -S . -B <scratch> …`), not
+  in the tree's `cmake-build-*`; run both branches.
+- **A pure header beside the module** (payload in, payload out) gives a stateless unit that a test reaches without the
+  event loop.
+- **A framework change consumed through a pin is a seam**: it can turn a neighbour's closed checks red (a label
+  allow-list in another layer's harness) — name it before the gate.
+- **A fake peer reproduces the real stop shape** (a Close frame followed by a reset), not a polite close
+  (`verification.md` § 6).

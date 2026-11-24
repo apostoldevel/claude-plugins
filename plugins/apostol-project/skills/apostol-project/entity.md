@@ -151,7 +151,7 @@ GRANT SELECT ON Access<Entity> TO administrator;
 | `api.count_<entity>(pSearch, pFilter)` | `SETOF bigint` | `EXECUTE api.sql('kernel', 'Object<Entity>', pSearch, pFilter, 0, null, '{}', '["count(id)"]')` |
 | `api.list_<entity>(pSearch, pFilter, pLimit, pOffset, pOrderBy)` | `SETOF api.<entity>` | `EXECUTE api.sql('kernel', 'Object<Entity>', pSearch, pFilter, pLimit, pOffset, pOrderBy)` |
 
-> **Schema `kernel` + view `Object<Entity>` is not a style choice.** `api.sql()` attaches the access join only when `pScheme = 'kernel'`, `GetAccessMode()` is true and a view named `replace(lower(pTable),'object','access')` exists. `api.sql('api', '<entity>', …)` returns every row with **no filtering and no error** — measured 2026-09: four of seven configurations route all lists this way and their 11–31 `Access<X>` views have no effect at all.
+> **Schema `kernel` + view `Object<Entity>` is not a style choice.** `api.sql()` attaches the access join only when `pScheme = 'kernel'`, `GetAccessMode()` is true and a view named `replace(lower(pTable),'object','access')` exists. `api.sql('api', '<entity>', …)` returns every row with **no filtering and no error**, and every `Access<X>` view of a configuration that routes its lists this way has no effect at all: `grep -rn "api.sql('api'" sql/configuration/`.
 
 **All `api.*` functions:** `LANGUAGE plpgsql SECURITY DEFINER SET search_path = kernel, pg_temp`.
 

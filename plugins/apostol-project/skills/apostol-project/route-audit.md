@@ -14,4 +14,6 @@ this skill and their code at the pins.
 
 **Checking the specification itself:** `drift.py` lists the blocks a newer commit may have made stale; `citecheck.py`
 proves that a citation resolves at its pin, not that the sentence is true — after a re-pin, reread every cited range a
-diff hunk overlaps.
+diff hunk overlaps. A mechanical re-pin misses what the tool does not parse — shorthand citations and a bare
+`File.hpp:N` — and a count written in prose: compare the line text at both pins, recount by pattern, and grep for the
+old hashes.

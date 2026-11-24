@@ -49,13 +49,24 @@ The three checks are **independent and cumulative**. AOU without the right area 
 > itself connects. Two agents independently almost reported two non-existent findings on this in a
 > single day.
 
-- **The ACU create bit `c` guards nothing by itself.** `CheckClassAccess` has no caller in the platform
-  (`workflow/routine.sql:651`, 1.2.35), and an object INSERT checks no class right: only the configuration's
-  `api.add_*` / `Create<Entity>` decides who may create.
+- **The ACU create bit `c` is checked on creation since 1.2.39 (`1fe338b`) and on a class change since 1.2.43
+  (`25e867a`).**
+  `db.ft_object_before_insert` asks `CheckClassAccess(NEW.class, B'01000')` (`entity/object/table.sql:130–131`, 1.2.43).
+  On `UPDATE` the class follows the type: when `type` changes, the trigger sets `class` from it and asks the same bit of
+  the new class (`:236–251`), so an `Edit<Entity>` that changes the type moves the object only for a holder of `c` there.
+  Both checks skip `session_user` `kernel` / `postgres`: a "who may create" test under `kernel` proves nothing — probe it
+  on the `daemon` road (below). On an older pin nothing calls `CheckClassAccess`
+  (`grep -n CheckClassAccess sql/platform/entity/object/table.sql`), and only the configuration's `api.add_*` /
+  `Create<Entity>` decides who may create.
 - **The last barrier on writing an existing object is the trigger `db.ft_object_before_update`**
-  (`CheckObjectAccess(…, B'010')`, `entity/object/table.sql:217`), not AMU — and it is skipped when `session_user` is
+  (`CheckObjectAccess(…, B'010')`, `entity/object/table.sql:231`, 1.2.43), not AMU — and it is skipped when `session_user` is
   `kernel` or `postgres`. Holes therefore sit in **creation** that references someone else's object, where there is no
   object yet to check.
+- **Only `db.object` carries access triggers** — insert, update, class change, delete (`entity/object/table.sql:131`,
+  `:231`, `:251`, `:319`; the delete check has no `kernel` / `postgres` exemption). `db.document`, `db.reference` and the
+  satellite tables (texts, data, files, links, a configuration's own detail tables) have none: the check sits in the
+  `api.*` function. A road that writes a satellite table directly calls `CheckObjectAccess` itself, and a guard copied
+  from the update trigger copies its `session_user` exemption.
 - **Signing in is an ACL bit too.** `Login()` checks the last bit of `db.acl` (`B'…0001'`) **before** the password and
   refuses with `AccessDenied` (`ERR-400-001`), not with a login error (`admin/routine.sql:6690`, password at `:6714`, 1.2.35).
   An account barred from signing in is a `deny` of that bit (`chmod`), and a test of it expects the access family.
@@ -201,6 +212,11 @@ WITH RECURSIVE area_tree(id, parent) AS (
 
 A user is a member of `pArea` when they have a `member_area` row on `pArea` **or on any ancestor** (upwards along the tree). So **member of <dbname> → member of every tenant area under <dbname>** — which is why the system administrator sees every tenant by default.
 
+**A tenant derived from the session's area follows the area, not the user.** `SetArea` admits any member by this upward
+walk (`admin/routine.sql:5730`, `:5750`, 1.2.43), so a member of an area can switch the session into any area below
+it — another tenant's included — and `current_scope()` and a configuration's `current_tenant()` (`entity.md`) then answer for that tenant.
+A route keyed on them checks the caller's role in that tenant itself.
+
 ### Two view patterns (Access<Entity>)
 
 **Production pattern (fast):**
@@ -270,12 +286,15 @@ Three rules: (1) `Object<Entity>` does **not** reference `Access<Entity>` — th
 
 All three require `session_user = 'kernel'` or `IsUserRole('administrator')`.
 
+**A bit granted to a group reaches every member** (`db.member_group`). A staff group may hold users who are not in group
+`user`, so a grant meant for one population widens another: list the members before `chmodc`.
+
 **`objectSet => true` means every existing object of the class**, not only future ones: the loop
 `FOR r IN SELECT id FROM db.object WHERE class = pClass AND owner <> pUserId` (`platform/workflow/routine.sql:786`, 1.2.31) —
 root and seeded objects get the mask too. Look at what the call will land on before making it.
 
-**`CheckClassAccess` has no exemption for admin/system** — it is a bare check of the ACU mask (`workflow/routine.sql:651–658`),
-and in platform 1.2.35 nothing calls it (see "What the layer names promise").
+**`CheckClassAccess` has no exemption for admin/system** — it is a bare check of the ACU mask (`workflow/routine.sql:651–658`);
+the exemption is the callers' `session_user` test in the object triggers (since 1.2.39, see "What the layer names promise").
 The seed of class `document` gives the group `user` the bits `a` and `c` (`B'11000'`, `workflow/table.sql:112`), and subclasses copy
 the parent's ACU (`:108`): a gate of "check bit `c`" on a document closes nothing for signed-in users — give the class its own rights.
 

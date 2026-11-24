@@ -14,3 +14,5 @@
   refusal the route makes: list them before you open an `api.*` function to a new road (`access-control.md`
   § Every door to an object, § `/api/v2` identity).
 - A service (`client_credentials`) session is refused by `GuardSession` / `GuardAdministrator` by design.
+- **Metrics are labelled by the route pattern, never by the raw path**; run a control scrape before you call a series
+  absent.
